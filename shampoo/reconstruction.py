@@ -16,7 +16,7 @@ import sys
 import warnings
 from multiprocessing.dummy import Pool as ThreadPool
 
-from .vis import save_scaled_image
+from vis import save_scaled_image
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
