@@ -7,7 +7,7 @@ Author: Laurent P. Rene de Cotret
 from .gui_utils import ComputationThread, InProgressWidget
 import numpy as np
 import os
-from PyQt4 import QtGui, QtCore
+from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 from .reconstruction import Hologram, ReconstructedWave
 import sys

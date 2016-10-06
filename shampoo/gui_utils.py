@@ -10,7 +10,7 @@ ComputationThread
 ProgressWidget
 """
 from math import sin, cos, pi
-from PyQt4 import QtCore, QtGui
+from pyqtgraph import QtCore, QtGui
 
 class ComputationThread(QtCore.QThread):
     """
