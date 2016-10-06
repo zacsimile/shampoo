@@ -4,12 +4,12 @@ Graphical User Interface to the SHAMPOO API.
 Author: Laurent P. René de Cotret
 """
 
-import gui_utils
+from .gui_utils import ComputationThread, InProgressWidget
 import numpy as np
 import os
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
-from reconstruction import Hologram, ReconstructedWave
+from .reconstruction import Hologram, ReconstructedWave
 import sys
 
 class DataViewer(pg.ImageView):
@@ -31,7 +31,7 @@ class DataViewer(pg.ImageView):
         ----------
         parent : QObject
         """
-        super().__init__()
+        super(DataViewer, self).__init__()
         self.parent = parent
 
         self._init_ui()
@@ -54,7 +54,7 @@ class DataViewer(pg.ImageView):
 
     def _init_ui(self):
 
-        self.progress_widget = gui_utils.InProgressWidget(parent = self)
+        self.progress_widget = InProgressWidget(parent = self)
         self.progress_widget.hide()
     
     def _connect_signals(self):
@@ -75,7 +75,7 @@ class ReconstructedHologramViewer(QtGui.QWidget):
         ----------
         parent : QObject
         """
-        super().__init__()
+        super(ReconstructedHologramViewer, self).__init__()
         self.parent = parent
 
         self._init_ui()
@@ -108,7 +108,7 @@ class ReconstructedHologramViewer(QtGui.QWidget):
         self.amplitude_viewer = pg.ImageView(parent = self, name = 'Reconstructed amplitude')
         self.phase_viewer = pg.ImageView(parent = self, name = 'Reconstructed phase')
 
-        self.progress_widget = gui_utils.InProgressWidget(parent = self)
+        self.progress_widget = InProgressWidget(parent = self)
         self.progress_widget.hide()
 
         #Assemble window
@@ -139,7 +139,7 @@ class App(QtGui.QMainWindow):
     ----------
     """
     def __init__(self):
-        super().__init__()
+        super(App, self).__init__()
 
         self.hologram = None
 
@@ -158,7 +158,7 @@ class App(QtGui.QMainWindow):
         """ Reconstruct hologram. """
         prop_distance, ok = self.reconstruction_parameters_dialog.getText(self, 'Reconstruction Parameters', 'Propagation distance (m)', text = str(0.03685))
         if ok:
-            self.worker = gui_utils.ComputationThread(self.hologram.reconstruct, float(prop_distance))
+            self.worker = ComputationThread(self.hologram.reconstruct, float(prop_distance))
             self.worker.results_signal.connect(self.reconstructed_viewer.display_reconstructed)
 
             # Optional: progress widget
@@ -226,6 +226,3 @@ def run():
     gui = App()
     
     sys.exit(app.exec_())
-    
-if __name__ == '__main__':
-    run()

@@ -61,7 +61,7 @@ class ComputationThread(QtCore.QThread):
         kwargs : dict
             Keyword arguments of function
         """
-        super().__init__()
+        super(ComputationThread, self).__init__()
         self.function = function
         self.args = args
         self.kwargs = kwargs
@@ -95,7 +95,7 @@ class InProgressWidget(QtGui.QWidget):
         ----------
         parent : QWidget instance
         """
-        super().__init__(parent)        
+        super(InProgressWidget, self).__init__(parent)        
         self._init_ui()
     
     def _init_ui(self):        
