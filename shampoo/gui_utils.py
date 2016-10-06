@@ -1,7 +1,7 @@
 """
 Convenience functions and objects for SHAMPOO's GUI component.
 
-Author: Laurent P. René de Cotret
+Author: Laurent P. Rene de Cotret
 
 Objects
 -------

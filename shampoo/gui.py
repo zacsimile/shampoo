@@ -1,7 +1,7 @@
 """
 Graphical User Interface to the SHAMPOO API.
 
-Author: Laurent P. René de Cotret
+Author: Laurent P. Rene de Cotret
 """
 
 from .gui_utils import ComputationThread, InProgressWidget
