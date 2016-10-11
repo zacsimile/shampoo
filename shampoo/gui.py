@@ -9,6 +9,7 @@ import numpy as np
 import os
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
+from .reactor import ShampooController
 from .reconstruction import Hologram, ReconstructedWave
 import sys
 
@@ -88,18 +89,17 @@ class ReconstructedHologramViewer(QtGui.QWidget):
 
         Parameters
         ----------
-        array : ndarray, dtype complex or shampoo.ReconstructedWave instance
+        data : ndarray, dtype complex or ReconstructedWave instance
         """
-        if isinstance(data, ReconstructedWave):
-            intensity, phase = data.intensity, data.phase
-        else:
-            intensity, phase = np.absolute(data), np.angle(data, deg = False)
+        if not isinstance(data, ReconstructedWave):
+            data = ReconstructedWave(data)
         
-        self.amplitude_viewer.setImage(img = intensity)
-        self.phase_viewer.setImage(img = phase)
+        self.amplitude_viewer.setImage(img = data.intensity)
+        self.phase_viewer.setImage(img = data.phase)
     
     def clear_view(self):
-        self.display_reconstructed(np.zeros(shape = (100, 100), dtype = np.complex))
+        self.amplitude_viewer.setImage(img = np.zeros((100,100), dtype = np.int))
+        self.phase_viewer.setImage(img = np.zeros((100,100), dtype = np.int))
 
     ### Boilerplate ###
 
@@ -141,44 +141,20 @@ class App(QtGui.QMainWindow):
     def __init__(self):
         super(App, self).__init__()
 
-        self.hologram = None
-
         self._init_ui()
         self._init_actions()
         self._connect_signals()
+
+        self.controller = ShampooController(output_function = self.reconstructed_viewer.display_reconstructed)
     
     def load_data(self):
         """ Load a hologram into memory and displays it. """
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')
-        self.hologram = Hologram.from_tif(os.path.abspath(path))
-        self.reconstructed_viewer.clear_view()
-        self.data_viewer.display_data(data = self.hologram)
-    
-    def reconstruct_hologram(self):
-        """ Reconstruct hologram. """
-        prop_distance, ok = self.reconstruction_parameters_dialog.getText(self, 'Reconstruction Parameters', 'Propagation distance (m)', text = str(0.03685))
-        if ok:
-            self.worker = ComputationThread(self.hologram.reconstruct, float(prop_distance))
-            self.worker.results_signal.connect(self.reconstructed_viewer.display_reconstructed)
-
-            # Optional: progress widget
-            self.worker.in_progress_signal.connect(self.data_viewer.progress_widget.show)
-            self.worker.done_signal.connect(self.data_viewer.progress_widget.hide)
-            self.worker.start()
+        hologram = Hologram.from_tif(os.path.abspath(path))
+        self.data_viewer.display_data(hologram)
+        self.controller.send_data(data = hologram)
 
     ### Boilerplate ###
-
-    def _init_actions(self):
-        """ 
-        Connects the menubar actions with other methods. 
-        """
-        self.load_data_action = QtGui.QAction('&Load raw data', self)
-        self.load_data_action.triggered.connect(self.load_data)
-        self.file_menu.addAction(self.load_data_action)
-
-        self.reconstruct_hologram_action = QtGui.QAction('&Reconstruct hologram', self)
-        self.reconstruct_hologram_action.triggered.connect(self.reconstruct_hologram)
-        self.hologram_menu.addAction(self.reconstruct_hologram_action)
 
     def _init_ui(self):
         """
@@ -194,7 +170,6 @@ class App(QtGui.QMainWindow):
 
         # Assemble menu from previously-defined actions
         self.file_menu = self.menubar.addMenu('&File')
-        self.hologram_menu = self.menubar.addMenu('&Hologram')
 
         # Assemble window
         self.splitter.addWidget(self.data_viewer)
@@ -211,6 +186,14 @@ class App(QtGui.QMainWindow):
         self.setWindowTitle('SHAMPOO')
         self._center_window()
         self.show()
+    
+    def _init_actions(self):
+        """ 
+        Connects the menubar actions with other methods. 
+        """
+        self.load_data_action = QtGui.QAction('&Load raw data', self)
+        self.load_data_action.triggered.connect(self.load_data)
+        self.file_menu.addAction(self.load_data_action)
     
     def _connect_signals(self):
         pass
