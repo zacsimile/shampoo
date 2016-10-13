@@ -1,48 +1,24 @@
 
 from multiprocessing import Process, Queue
-from threading import Thread, Lock
+import numpy as np
+from threading import Thread
+from time import sleep
 from .reconstruction import Hologram, ReconstructedWave
 
 class ShampooController(object):
     """
     Underlying controller to SHAMPOO's Graphical User Interface
-
-    Attributes
-    ----------
-    propagation_distance : float
-        Propagation distance at which to reconstruct holograms. Will be extended
-        to arrays soon.
-    input_queue : multiprocessing.Queue
-        Input holograms queue.
-    output_queue : multiprocessing.Queue
-        Output ReconstructedWave queue.
-    reactor : ReconstructionReactor instance
-        Reconstruction reactor
-    
-    Methods
-    -------
-    start_real_time_reconstruction
-
-    stop_real_time_reconstruction
-
-    send_data
-
     """
-    DEFAULT_PROPAGATION_DISTANCE = 0.03658
-
-    def __init__(self, output_function):
+    def __init__(self, out_queue):
         """
         Parameters
         ----------
         output_function: callable
         """
         self.input_queue = Queue()
-        self.output_queue = Queue()
+        self.output_queue = out_queue
 
-        self.reconstruction_reactor = ReconstructionReactor(in_queue = self.input_queue, out_queue = self.output_queue, prop_distance = self.DEFAULT_PROPAGATION_DISTANCE)
-        self.output_reactor = OutputReactor(in_queue = self.output_queue, output_function = output_function)
-
-        self.start_real_time_reconstruction()
+        self.reconstruction_reactor = ReconstructionReactor(in_queue = self.input_queue, out_queue = self.output_queue)
 
     def send_data(self, data):
         """ 
@@ -64,110 +40,128 @@ class ShampooController(object):
     
     @propagation_distance.setter
     def propagation_distance(self, prop_distance):
-        # TODO: add type checks?
         self.reconstruction_reactor.propagation_distance = prop_distance
-    
-    # Real-time control
-    def start_real_time_reconstruction(self):
-        """ Start the real-time reconstruction of holograms. """
-        self.reconstruction_reactor.start()
-        self.output_reactor.start()
-
-    def stop_real_time_reconstruction(self):
-        """ Halts the real-time reconstruction of holograms. """
-        self.reconstruction_reactor.stop()
-        self.output_reactor.stop()
-    
-    def __del__(self):
-        # Is this necessary?
-        self.stop_real_time_reconstruction()
-        super(ReconstructionController, self).__del__()
 
 ### REACTORS ###
 
-class OutputReactor(object):
-    """ Reactor that reacts to the output. For simplicity reasons, this is done in a Thread """
-    def __init__(self, in_queue, output_function):
-
-        self.input_queue = in_queue
-        self.function = output_function
-        self.worker = None
-
-        self._isrunning = True
-
-    def start(self):        
-        self.worker = Thread(target = self._main_loop)
-        self.worker.start()
-    
-    def stop(self):
-        self._isrunning = False
-
-    def _main_loop(self):
-        while True:
-            if not self._isrunning:
-                break
-            
-            item = self.input_queue.get()
-            self.function(item)
-        
-        # Prepare next loop start()
-        self._isrunning = True
-
-def _reactor_main_loop(reactor):
-    return reactor._main_loop()
-
-class ReconstructionReactor(object):
+class Reactor(object):
     """
-    Reactor that reconstructs holograms as they come in.
-
-    Attributes
-    ----------
-    propagation_distance : float
-        Propagation distance at which to reconstruct holograms. Will be extended
-        to arrays soon.
-    input_queue : multiprocessing.Queue
-        Input holograms queue.
-    output_queue : multiprocessing.Queue
-        Output ReconstructedWave queue.
-    worker : multiprocessing.Process instance or None
+    Reactor template class. A reactor is an object that waits for input and reacts accordingly when
+    an input is sent to it. To subclass, must at least override reaction(self, item). Can also be initialized with
+    a function argument.
 
     Methods
     -------
-    start
-        Start reconstructing inputs as they come in.
-    stop
-        Stop the main loop. Can be restarted at any time.
+    send_item
+        Add an item to the queue.
+    is_alive
+        Check whether the reactor is still running.
+    reaction
+        Method that is called on every item in the input queue.
+
+    Example
+    -------
+    Via constructor: for simple, one-argument functions like print
+    >>> from queue import Queue
+    >>> 
+    >>> print_queue = Queue()
+    >>> test = Reactor(in_queue = print_queue, function = print)
+    >>> print_queue.put('foobar')
+
+    Subclassing: for more complicated, dynamic argument functions
+    Print incoming items with the creating time of the reactor
+    >>> from queue import Queue
+    >>> from datetime.datetime import now
+    >>>
+    >>> class PrintReactor(Reactor):
+    >>>     def __init__(self, in_queue, **kwargs):
+    >>>         super(PrintReactor, self).__init__(in_queue = in_queue, function = None, **kwargs)
+    >>>         self.creation_time = now()
+    >>> 
+    >>>     def reaction(self, item):
+    >>>         print(item, self.creation_time)
+    >>> 
+    >>> print_queue = Queue()
+    >>> test = PrintReactor(in_queue = print_queue)
+    >>> print_queue.put('foobar')
     """
-    def __init__(self, in_queue, out_queue, prop_distance = 0.03685):
+    def __init__(self, in_queue, function = None, **kwargs):
         """
         Parameters
         ----------
-        input_queue : multiprocessing.Queue
-            Input holograms queue.
-        output_queue : multiprocessing.Queue
-            Output ReconstructedWave queue.
-        propagation_distance : float
+        in_queue : Queue instance
+            Thread-safe Queue object. Can be from the queue (py3) or Queue (py2) module, or multiprocessing.
+        function : callable or None, optional
+            Function of one argument. Will be applied to all items in in_queue. If None, Reactor must be subclassed.
         """
+        super(Reactor, self).__init__(**kwargs)
         self.input_queue = in_queue
-        self.output_queue = out_queue
-        self.propagation_distance = prop_distance
-        self.worker = None
+        self._function = function
 
-    def start(self):
-        # To run in a process, a function must be pickable, and thus not a method
-        # Therefore, self._main_loop() is wrapped by an external function
-        # A Process object is used (instead of Thread) so that the Hologram.reconstruct
-        # method is free to multithread the computation.
-        self.worker = Process(target = _reactor_main_loop, args = (self,))
+        self.worker = Thread(target = self._event_loop)
+        self.worker.daemon = True
         self.worker.start()
-
-    def stop(self):
-        if self.worker.is_alive():
-            self.worker.terminate()
     
-    def _main_loop(self):
-        """ Loop checking for holograms in the input queue and reconstructing them. """
+    def is_alive(self):
+        return self.worker.is_alive()
+    
+    def send_item(self, item):
+        """ Send item to the input queue of the reactor. """
+        self.input_queue.put(item)
+    
+    def reaction(self, item):
+        if self._function is not None:
+            return self._function(item)
+        raise NotImplementedError('Either override the Reactor.reaction method, or provide a function in the constructor.')
+    
+    def _event_loop(self):
+        while True:
+            item = self.input_queue.get()   # Reactor waits indefinitely here
+            self.reaction(item)
 
-        while True:           
-            hologram = self.input_queue.get()
-            self.output_queue.put(hologram.reconstruct(propagation_distance = self.propagation_distance))
+def _reconstruct_hologram(hologram, propagation_distance, output_queue):
+    """
+    Function wrapper to Hologram.reconstruct
+
+    Parameters
+    ----------
+    hologram: Hologram instance
+
+    propagation_distance : ndarray, shape (N,) 
+
+    output_queue : multiprocessing.Queue instance
+
+    """
+    print(propagation_distance)
+    if len(propagation_distance) == 1:
+        # Keep the propagation distance in the queue, for correct plotting
+        output_queue.put( (propagation_distance, hologram.reconstruct(propagation_distance = propagation_distance[0])) )
+    else:
+        output_queue.put( (propagation_distance, hologram.reconstruct_multithread(propagation_distances = propagation_distance)) )
+
+class ReconstructionReactor(Reactor):
+    """    
+    """
+    def __init__(self, in_queue, out_queue, **kwargs):
+        """
+        Parameters
+        ----------
+        in_queue, out_queue : Queue instances
+            Thread-safe and Process-safe Queue objects.
+        """
+        super(ReconstructionReactor, self).__init__(in_queue = in_queue, function = None, **kwargs)
+        self.output_queue = out_queue
+        self._propagation_distance = np.array([0.03685])
+
+    # Propagation distance property ensures that propagation distance is always an array
+    @property
+    def propagation_distance(self):
+        return self._propagation_distance
+    
+    @propagation_distance.setter
+    def propagation_distance(self, value):
+        self._propagation_distance = np.array(value).tolist()
+    
+    def reaction(self, hologram):
+        self.sub_worker = Process(target = _reconstruct_hologram, args = (hologram, self.propagation_distance, self.output_queue))
+        self.sub_worker.start()
