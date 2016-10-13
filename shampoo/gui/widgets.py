@@ -5,7 +5,7 @@ import os
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
 from .reactor import Reactor
-from .reconstruction import Hologram, ReconstructedWave
+from ..reconstruction import Hologram, ReconstructedWave
 
 ICONS_FOLDER = os.path.join(os.path.dirname(__file__), 'icons')
 

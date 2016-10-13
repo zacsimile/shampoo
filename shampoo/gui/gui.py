@@ -10,7 +10,7 @@ import os
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 from .reactor import ShampooController, Reactor
-from .reconstruction import Hologram, ReconstructedWave
+from ..reconstruction import Hologram, ReconstructedWave
 import sys
 from .widgets import DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector
 

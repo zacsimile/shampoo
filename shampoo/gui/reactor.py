@@ -3,7 +3,7 @@ from multiprocessing import Process, Queue
 import numpy as np
 from threading import Thread
 from time import sleep
-from .reconstruction import Hologram, ReconstructedWave
+from ..reconstruction import Hologram, ReconstructedWave
 
 class ShampooController(object):
     """
