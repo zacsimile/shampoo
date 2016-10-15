@@ -3,56 +3,105 @@ Graphical User Interface to the SHAMPOO API.
 
 Author: Laurent P. Rene de Cotret
 """
-
-from multiprocessing import Queue
+from multiprocessing import Process
 import numpy as np
 import os
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
-from .reactor import ShampooController, Reactor
+from .reactor import Reactor, ProcessSafeQueue, ThreadSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
-from .widgets import DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector
+from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector
 
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
-class App(QtGui.QMainWindow):
+def _reconstruct_hologram(item):
+    """ Function wrapper to Hologram.reconstruct. """
+    propagation_distance, hologram = item
+    if len(propagation_distance) == 1:
+        return (propagation_distance, hologram.reconstruct(propagation_distance = propagation_distance[0]))
+    else:
+        return (propagation_distance, hologram.reconstruct_multithread(propagation_distances = propagation_distance))
+
+class ShampooController(QtCore.QObject):
+    """
+    Underlying controller to SHAMPOO's Graphical User Interface
+
+    Methods
+    -------
+    send_data
+        Send raw holographic data, to be reconstructed.
+    
+    update_propagation_distance
+        Change the propagation distance(s) used in the holographic reconstruction process.
+    
+    Signals
+    -------
+    reconstructed_hologram_signal
+        Emits a reconstructed hologram whenever one is available
+    """
+    reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
+
+    def __init__(self, **kwargs):
+        """
+        Parameters
+        ----------
+        output_function: callable
+        """
+        super(ShampooController, self).__init__(**kwargs)
+        self.reconstructed_queue = ProcessSafeQueue()
+        self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
+
+        # Wire up reactor
+        self.reconstruction_reactor = Reactor(function = _reconstruct_hologram, callback = self.reconstructed_hologram_signal.emit)
+        self.reconstruction_reactor.start()
+
+    @QtCore.pyqtSlot(object)
+    def send_data(self, data):
+        """ 
+        Send holographic data to the reconstruction reactor.
+
+        Parameters
+        ----------
+        tup : ndarray or Hologram object
+            Can be any type that can is accepted by the Hologram() constructor.
+        """
+        if not isinstance(data, Hologram):
+            data = Hologram(data)
+        self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
+    
+    @QtCore.pyqtSlot(object)
+    def update_propagation_distance(self, item):
+        """ Thread-safe PyQt slot API to updating the propagation distance. """
+        self.propagation_distance = item
+
+def run():   
+    app = QtGui.QApplication(sys.argv)
+    gui = App()
+    
+    sys.exit(app.exec_())
+
+class App(ShampooWidget, QtGui.QMainWindow):
     """
     
     Attributes
     ----------
     """
     def __init__(self):
-        super(App, self).__init__()
 
         self.data_viewer = None
         self.reconstructed_viewer = None
         self.propagation_distance_selector = None
+        self.controller = ShampooController()
 
-        self._init_ui()
-        self._init_actions()
-        self._connect_signals()
-
-        self.controller = ShampooController(out_queue = self.reconstructed_viewer.display_queue)
+        super(App, self).__init__()
     
     def load_data(self):
         """ Load a hologram into memory and displays it. """
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')
         hologram = Hologram.from_tif(os.path.abspath(path))
-        self.data_viewer.display_data(hologram)
+        self.data_viewer.display(hologram)
         self.controller.send_data(data = hologram)
-
-    @QtCore.pyqtSlot(object)
-    def update_propagation_distance(self, value):
-        """ 
-        Updates the Controller with a new propagation distance value.
-        
-        Parameters
-        ----------
-        value : float or iterable
-            Propagation distance(s) at which to reconstruct holograms.
-        """
-        self.controller.propagation_distance = value
 
     ### Boilerplate ###
 
@@ -94,16 +143,11 @@ class App(QtGui.QMainWindow):
         self.file_menu.addAction(self.load_data_action)
     
     def _connect_signals(self):
-        self.propagation_distance_selector.propagation_distance_signal.connect(self.update_propagation_distance)
+        self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
+        self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
     
     def _center_window(self):
         qr = self.frameGeometry()
         cp = QtGui.QDesktopWidget().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
-
-def run():   
-    app = QtGui.QApplication(sys.argv)
-    gui = App()
-    
-    sys.exit(app.exec_())

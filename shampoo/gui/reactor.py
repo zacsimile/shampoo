@@ -1,59 +1,40 @@
 
-from multiprocessing import Process, Queue
+from multiprocessing import Process
+from multiprocessing import Queue as ProcessSafeQueue
 import numpy as np
 from threading import Thread
 from time import sleep
 from ..reconstruction import Hologram, ReconstructedWave
 
-class ShampooController(object):
-    """
-    Underlying controller to SHAMPOO's Graphical User Interface
-    """
-    def __init__(self, out_queue):
-        """
-        Parameters
-        ----------
-        output_function: callable
-        """
-        self.input_queue = Queue()
-        self.output_queue = out_queue
+try:
+    from queue import Queue as ThreadSafeQueue  # Python 3
+except ImportError:
+    from Queue import Queue as ThreadSafeQueue  # Python 2
 
-        self.reconstruction_reactor = ReconstructionReactor(in_queue = self.input_queue, out_queue = self.output_queue)
+def _trivial_function(item):
+    return item
 
-    def send_data(self, data):
-        """ 
-        Send holographic data to the reconstruction reactor.
+def _trivial_callback(item, *args, **kwargs):
+    pass
 
-        Parameters
-        ----------
-        data : ndarray or Hologram object
-            Can be any type that can is accepted by the Hologram() constructor.
-        """
-        if not isinstance(data, Hologram):
-            data = Hologram(data)
-        self.input_queue.put(data)
-    
-    # Proxy property to propagation distance from reconstruction reactor
-    @property
-    def propagation_distance(self):
-        return self.reconstruction_reactor.propagation_distance
-    
-    @propagation_distance.setter
-    def propagation_distance(self, prop_distance):
-        self.reconstruction_reactor.propagation_distance = prop_distance
+class DummyQueue(object):
+    """ Dummy queue that does not respond to the put() method """
+    def __init__(self, *args, **kwargs):
+        pass
 
-### REACTORS ###
+    def put(self, *args, **kwargs):
+        pass
 
 class Reactor(object):
     """
-    Reactor template class. A reactor is an object that waits for input and reacts accordingly when
+    Reactor template class. A reactor is an object that reacts accordingly when
     an input is sent to it. To subclass, must at least override reaction(self, item). Can also be initialized with
     a function argument.
 
     Methods
     -------
     send_item
-        Add an item to the queue.
+        Add an item to reactor, adding it to the input queue.
     is_alive
         Check whether the reactor is still running.
     reaction
@@ -62,106 +43,81 @@ class Reactor(object):
     Example
     -------
     Via constructor: for simple, one-argument functions like print
-    >>> from queue import Queue
+    >>> from queue import Queue     # Python 3
     >>> 
-    >>> print_queue = Queue()
-    >>> test = Reactor(in_queue = print_queue, function = print)
-    >>> print_queue.put('foobar')
+    >>> def func(item):
+    ...    print(item)
+    ...    return item
+    ...
+    >>> messages = Queue()
+    >>> test = Reactor(out_queue = messages, function = func)
+    >>> test.send_item('foobar')
+    >>> messages.get() # 'foobar'
 
     Subclassing: for more complicated, dynamic argument functions
     Print incoming items with the creating time of the reactor
-    >>> from queue import Queue
+    >>> from queue import Queue     # Python 3
     >>> from datetime.datetime import now
     >>>
     >>> class PrintReactor(Reactor):
-    >>>     def __init__(self, in_queue, **kwargs):
-    >>>         super(PrintReactor, self).__init__(in_queue = in_queue, function = None, **kwargs)
+    >>>     def __init__(self, out_queue, **kwargs):
+    >>>         super(PrintReactor, self).__init__(**kwargs)
     >>>         self.creation_time = now()
     >>> 
     >>>     def reaction(self, item):
     >>>         print(item, self.creation_time)
     >>> 
-    >>> print_queue = Queue()
-    >>> test = PrintReactor(in_queue = print_queue)
-    >>> print_queue.put('foobar')
+    >>> messages = Queue()
+    >>> test = PrintReactor(out_queue = messages)
+    >>> test.send_item('foobar')
     """
-    def __init__(self, in_queue, function = None, **kwargs):
+    def __init__(self, in_queue = None, out_queue = None, function = None, callback = None, **kwargs):
         """
         Parameters
         ----------
-        in_queue : Queue instance
-            Thread-safe Queue object. Can be from the queue (py3) or Queue (py2) module, or multiprocessing.
+        in_queue: Queue instance or None, optional
+            Thread-safe Queue object. If None (default), a local Queue is created. In this case, items can be sent to
+            the reactir using the send_item() method.
+        out_queue : Queue instance or None, optional
+            Thread-safe Queue object, or process-safe Queue object. If None (default), processed items are not passed
+            to this output queue.
         function : callable or None, optional
-            Function of one argument. Will be applied to all items in in_queue. If None, Reactor must be subclassed.
+            Function of one argument which will be applied to all items in in_queue. If None (default), 
+            a trivial function that returns the input is used.
+        callback : callable or None, optional
+            Called on each item, after being stored in the output queue. Ideal for emitting Qt signals or printing.
+        
+        Raises
+        ------
+        ValueError
+            If callback and out_queue are both None.
         """
-        super(Reactor, self).__init__(**kwargs)
-        self.input_queue = in_queue
-        self._function = function
+        if not any((out_queue, callback)):      # out_queue and callback are None
+            raise ValueError('out_queue and callback cannot be both None.')
 
-        self.worker = Thread(target = self._event_loop)
-        self.worker.daemon = True
+        self.input_queue = in_queue if in_queue is not None else ThreadSafeQueue()
+        self.output_queue = out_queue if out_queue is not None else DummyQueue()
+        self.function = function if function is not None else _trivial_function
+        self.callback = callback if callback is not None else _trivial_callback
+        self.worker = None
+    
+    def start(self):
+        # Start of the reactor is in a separate method to allow control by subclasses.
+        self.worker = Thread(target = self._event_loop, daemon = True)
         self.worker.start()
     
     def is_alive(self):
         return self.worker.is_alive()
     
     def send_item(self, item):
-        """ Send item to the input queue of the reactor. """
         self.input_queue.put(item)
     
     def reaction(self, item):
-        if self._function is not None:
-            return self._function(item)
-        raise NotImplementedError('Either override the Reactor.reaction method, or provide a function in the constructor.')
+        return self.function(item)
     
     def _event_loop(self):
         while True:
             item = self.input_queue.get()   # Reactor waits indefinitely here
-            self.reaction(item)
-
-def _reconstruct_hologram(hologram, propagation_distance, output_queue):
-    """
-    Function wrapper to Hologram.reconstruct
-
-    Parameters
-    ----------
-    hologram: Hologram instance
-
-    propagation_distance : ndarray, shape (N,) 
-
-    output_queue : multiprocessing.Queue instance
-
-    """
-    print(propagation_distance)
-    if len(propagation_distance) == 1:
-        # Keep the propagation distance in the queue, for correct plotting
-        output_queue.put( (propagation_distance, hologram.reconstruct(propagation_distance = propagation_distance[0])) )
-    else:
-        output_queue.put( (propagation_distance, hologram.reconstruct_multithread(propagation_distances = propagation_distance)) )
-
-class ReconstructionReactor(Reactor):
-    """    
-    """
-    def __init__(self, in_queue, out_queue, **kwargs):
-        """
-        Parameters
-        ----------
-        in_queue, out_queue : Queue instances
-            Thread-safe and Process-safe Queue objects.
-        """
-        super(ReconstructionReactor, self).__init__(in_queue = in_queue, function = None, **kwargs)
-        self.output_queue = out_queue
-        self._propagation_distance = np.array([0.03685])
-
-    # Propagation distance property ensures that propagation distance is always an array
-    @property
-    def propagation_distance(self):
-        return self._propagation_distance
-    
-    @propagation_distance.setter
-    def propagation_distance(self, value):
-        self._propagation_distance = np.array(value).tolist()
-    
-    def reaction(self, hologram):
-        self.sub_worker = Process(target = _reconstruct_hologram, args = (hologram, self.propagation_distance, self.output_queue))
-        self.sub_worker.start()
+            reacted = self.reaction(item)
+            self.callback(reacted)
+            self.output_queue.put(reacted)
