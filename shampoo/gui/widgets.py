@@ -59,9 +59,13 @@ class DataViewer(Viewer, pg.ImageView):
     """
     QWidget displaying the raw holograms, before reconstruction.
 
-    Methods
-    -------
+    Slots
+    -----
     display
+        Display raw holographic data.
+    
+    clear
+        Clear view.
     """
 
     def __init__(self, parent, **kwargs):
@@ -99,13 +103,14 @@ class ReconstructedHologramViewer(Viewer, QtGui.QWidget):
     """
     QWidget displaying the reconstructed wave holographic data, in two plots: phase and amplitude.
 
-    Methods
-    -------
+    Slots
+    -----
     display
+        Display the phase and amplitude information of a reconstructed hologram.
+    
+    clear
+        Clear view.
     """
-    # A PyQt Signal is required to transfer data between threads
-    # Therefore, the display reactor must emit a signal to be able to plot ano image
-    _internal_display_signal = QtCore.pyqtSignal(object, name = 'display_signal')
 
     def __init__(self, parent, **kwargs):
         """
@@ -136,11 +141,6 @@ class ReconstructedHologramViewer(Viewer, QtGui.QWidget):
         
         self.amplitude_viewer.setImage(img = data.intensity, xvals = xvals)
         self.phase_viewer.setImage(img = data.phase, xvals = xvals)
-
-    @QtCore.pyqtSlot(object)
-    def _display_from_queue(self, data_tup):
-        """ Display a propagation_distance, reconstructed_hologram pair. """
-
     
     @QtCore.pyqtSlot()
     def clear(self):
@@ -171,15 +171,16 @@ class ReconstructedHologramViewer(Viewer, QtGui.QWidget):
         pass
 
     def _connect_signals(self):
-        self._internal_display_signal.connect(self._display_from_queue)
+        pass
 
 class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
     """
     QWidget allowing the user to select an array of propagation distances
 
-    Methods
+    Signals
     -------
-    update_propagation_distance
+    propagation_distance_signal
+        Emitted when propagation distances are modified.
     """
     propagation_distance_signal = QtCore.pyqtSignal(object, name = 'propagation_distance')
 
@@ -187,7 +188,7 @@ class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
         super(PropagationDistanceSelector, self).__init__(parent)
     
     @QtCore.pyqtSlot()
-    def update_propagation_distance(self):
+    def _update_propagation_distance(self):
         """
         Emits the propagation_distance signal with the sorted propagation distance data parsed from the widget.
         """
@@ -256,4 +257,4 @@ class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
         self.remove_btn.clicked.connect(self._remove_propagation_distance_cell)
     
         # Updating the table updates the propagation distance
-        self.table.itemChanged.connect(self.update_propagation_distance)
+        self.table.itemChanged.connect(self._update_propagation_distance)

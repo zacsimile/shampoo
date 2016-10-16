@@ -28,11 +28,12 @@ class DummyQueue(object):
 class Reactor(object):
     """
     Reactor template class. A reactor is an object that reacts accordingly when
-    an input is sent to it. To subclass, must at least override reaction(self, item). Can also be initialized with
-    a function argument.
+    an input is sent to it. To subclass, must at least override reaction(self, item).
 
     Methods
     -------
+    start
+        Start the reactor. Input can be queued before this method is called.
     send_item
         Add an item to reactor, adding it to the input queue.
     is_alive
@@ -42,61 +43,49 @@ class Reactor(object):
 
     Example
     -------
-    Via constructor: for simple, one-argument functions like print
-    >>> from queue import Queue     # Python 3
-    >>> 
-    >>> def func(item):
-    ...    print(item)
-    ...    return item
-    ...
-    >>> messages = Queue()
-    >>> test = Reactor(out_queue = messages, function = func)
+    Simple callback:
+    >>> from __future__ import print_function
+    >>> test = Reactor(callback = print)
     >>> test.send_item('foobar')
-    >>> messages.get() # 'foobar'
 
-    Subclassing: for more complicated, dynamic argument functions
-    Print incoming items with the creating time of the reactor
-    >>> from queue import Queue     # Python 3
-    >>> from datetime.datetime import now
+    Chaining reactors:
+    >>> from queue import Queue   # Python 3
     >>>
-    >>> class PrintReactor(Reactor):
-    >>>     def __init__(self, out_queue, **kwargs):
-    >>>         super(PrintReactor, self).__init__(**kwargs)
-    >>>         self.creation_time = now()
-    >>> 
-    >>>     def reaction(self, item):
-    >>>         print(item, self.creation_time)
-    >>> 
     >>> messages = Queue()
-    >>> test = PrintReactor(out_queue = messages)
-    >>> test.send_item('foobar')
+    >>> results = Queue()
+    >>>
+    >>> def some_func_1(item): return item
+    >>> def some_func_2(item): return item
+    >>>
+    >>> reactor1 = Reactor(output_queue = messages, function = some_func_1, callback = print)
+    >>> reactor2 = Reactor(input_queue = messages, output_queue = results, function = some_func_2, callback = print)
+    >>> reactor1.send_item('foobar')
     """
-    def __init__(self, in_queue = None, out_queue = None, function = None, callback = None, **kwargs):
+    def __init__(self, input_queue = None, output_queue = None, function = None, callback = None, **kwargs):
         """
         Parameters
         ----------
-        in_queue: Queue instance or None, optional
+        input_queue: Queue instance or None, optional
             Thread-safe Queue object. If None (default), a local Queue is created. In this case, items can be sent to
-            the reactir using the send_item() method.
-        out_queue : Queue instance or None, optional
-            Thread-safe Queue object, or process-safe Queue object. If None (default), processed items are not passed
-            to this output queue.
+            the reactor using the send_item() method.
+        output_queue : Queue instance or None, optional
+            Thread-safe Queue object, or process-safe Queue object. If None (default), processed items are not stored in any queue.
         function : callable or None, optional
-            Function of one argument which will be applied to all items in in_queue. If None (default), 
+            Function of one argument which will be applied to all items in input_queue. If None (default), 
             a trivial function that returns the input is used.
         callback : callable or None, optional
-            Called on each item, after being stored in the output queue. Ideal for emitting Qt signals or printing.
+            Called on each item before being stored in the output queue. Ideal for emitting Qt signals or printing.
         
         Raises
         ------
         ValueError
-            If callback and out_queue are both None.
+            If callback and output_queue are both None.
         """
-        if not any((out_queue, callback)):      # out_queue and callback are None
-            raise ValueError('out_queue and callback cannot be both None.')
+        if not any((output_queue, callback)):      # output_queue and callback are None
+            raise ValueError('output_queue and callback cannot be both None.')
 
-        self.input_queue = in_queue if in_queue is not None else ThreadSafeQueue()
-        self.output_queue = out_queue if out_queue is not None else DummyQueue()
+        self.input_queue = input_queue if input_queue is not None else ThreadSafeQueue()
+        self.output_queue = output_queue if output_queue is not None else DummyQueue()
         self.function = function if function is not None else _trivial_function
         self.callback = callback if callback is not None else _trivial_callback
         self.worker = None

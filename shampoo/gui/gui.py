@@ -16,7 +16,7 @@ from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, Pro
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
 def _reconstruct_hologram(item):
-    """ Function wrapper to Hologram.reconstruct. """
+    """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. """
     propagation_distance, hologram = item
     if len(propagation_distance) == 1:
         return (propagation_distance, hologram.reconstruct(propagation_distance = propagation_distance[0]))
@@ -27,18 +27,18 @@ class ShampooController(QtCore.QObject):
     """
     Underlying controller to SHAMPOO's Graphical User Interface
 
-    Methods
+    Signals
+    -------
+    reconstructed_hologram_signal
+        Emits a reconstructed hologram whenever one is available
+    
+    Slots
     -------
     send_data
         Send raw holographic data, to be reconstructed.
     
     update_propagation_distance
         Change the propagation distance(s) used in the holographic reconstruction process.
-    
-    Signals
-    -------
-    reconstructed_hologram_signal
-        Emits a reconstructed hologram whenever one is available
     """
     reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
 
@@ -49,7 +49,7 @@ class ShampooController(QtCore.QObject):
         output_function: callable
         """
         super(ShampooController, self).__init__(**kwargs)
-        self.reconstructed_queue = ProcessSafeQueue()
+        self.reconstructed_queue = ThreadSafeQueue()
         self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
 
         # Wire up reactor
@@ -77,15 +77,26 @@ class ShampooController(QtCore.QObject):
 
 def run():   
     app = QtGui.QApplication(sys.argv)
+    app.setStyle(QtGui.QStyleFactory.create('cde'))
     gui = App()
     
     sys.exit(app.exec_())
 
 class App(ShampooWidget, QtGui.QMainWindow):
     """
+    GUI shell to the ShampooController object.
+
+    Widgets
+    -------
+    data_viewer
+        View raw holographic data
     
-    Attributes
-    ----------
+    reconstructed_viewer
+        View reconstructed holographic data
+
+    propagation_distance_selector
+        Select the propagation distance(s) with which to reconstruct
+        holograms.
     """
     def __init__(self):
 
@@ -96,14 +107,13 @@ class App(ShampooWidget, QtGui.QMainWindow):
 
         super(App, self).__init__()
     
+    @QtCore.pyqtSlot()
     def load_data(self):
         """ Load a hologram into memory and displays it. """
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')
         hologram = Hologram.from_tif(os.path.abspath(path))
         self.data_viewer.display(hologram)
         self.controller.send_data(data = hologram)
-
-    ### Boilerplate ###
 
     def _init_ui(self):
         """
