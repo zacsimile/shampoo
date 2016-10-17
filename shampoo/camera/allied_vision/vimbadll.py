@@ -30,8 +30,7 @@ if sys_plat == "win32":
             raise IOError("VimbaC.dll not found.")
         return dlls[-1]
 
-    from ctypes.util import find_msvcrt
-    _cruntime = cdll.LoadLibrary(find_msvcrt())
+    _cruntime = cdll.LoadLibrary('msvcrt')
     if '64' in platform.architecture()[0]:
         vimbaC_path = find_win_dll(64)
     else:
