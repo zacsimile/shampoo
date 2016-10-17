@@ -1,6 +1,4 @@
 
-from multiprocessing import Process
-from multiprocessing import Queue as ProcessSafeQueue
 import numpy as np
 from threading import Thread
 from time import sleep
@@ -17,7 +15,7 @@ def _trivial_function(item):
 def _trivial_callback(item, *args, **kwargs):
     pass
 
-class DummyQueue(object):
+class VoidQueue(object):
     """ Dummy queue that does not respond to the put() method """
     def __init__(self, *args, **kwargs):
         pass
@@ -39,7 +37,7 @@ class Reactor(object):
     is_alive
         Check whether the reactor is still running.
     reaction
-        Method that is called on every item in the input queue.
+        Method that is called on every item in the input queue. User-facing for subclassing purposes.
 
     Example
     -------
@@ -59,6 +57,7 @@ class Reactor(object):
     >>>
     >>> reactor1 = Reactor(output_queue = messages, function = some_func_1, callback = print)
     >>> reactor2 = Reactor(input_queue = messages, output_queue = results, function = some_func_2, callback = print)
+    >>> reactor1.start(), reactor2.start()
     >>> reactor1.send_item('foobar')
     """
     def __init__(self, input_queue = None, output_queue = None, function = None, callback = None, **kwargs):
@@ -85,28 +84,32 @@ class Reactor(object):
             raise ValueError('output_queue and callback cannot be both None.')
 
         self.input_queue = input_queue if input_queue is not None else ThreadSafeQueue()
-        self.output_queue = output_queue if output_queue is not None else DummyQueue()
+        self.output_queue = output_queue if output_queue is not None else VoidQueue()
         self.function = function if function is not None else _trivial_function
         self.callback = callback if callback is not None else _trivial_callback
         self.worker = None
     
     def start(self):
+        """ Start the event loop in a separate thread. """
         # Start of the reactor is in a separate method to allow control by subclasses.
         self.worker = Thread(target = self._event_loop, daemon = True)
         self.worker.start()
     
     def is_alive(self):
+        """ Returns True if the event loop is running. Otherwise, returns False. """
         return self.worker.is_alive()
     
     def send_item(self, item):
+        """ Adds an item to the input queue. """
         self.input_queue.put(item)
     
     def reaction(self, item):
+        """ Method applied to every item in the input queue. Provided as an easy mean to subclass. """
         return self.function(item)
     
     def _event_loop(self):
         while True:
             item = self.input_queue.get()   # Reactor waits indefinitely here
-            reacted = self.reaction(item)
+            reacted = self.function(item)
             self.callback(reacted)
             self.output_queue.put(reacted)
