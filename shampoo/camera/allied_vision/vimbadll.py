@@ -6,47 +6,39 @@ import platform
 import os
 from ctypes import *
 
-if sys_plat == "win32":
+def find_win_dll(arch):
+    """ 
+    Finds the highest versioned windows dll for the specified architecture. 
 
-    def find_win_dll(arch):
-        """ 
-        Finds the highest versioned windows dll for the specified architecture. 
+    Parameters
+    ----------
+    arch : int, {32, 64}
+        Architecture, either 32-bit or 64-bit
 
-        Raises
-        ------
-        IOError
-            If VimbaC.dll cannot be found.
-        """
-        bases = ['C:\\Program Files\\Allied Vision Technologies\\AVTVimba_%i.%i\\VimbaC\\Bin\\Win%i\\VimbaC.dll',
-                 'C:\\Program Files\\Allied Vision\\Vimba_%i.%i\\VimbaC\\Bin\Win%i\\VimbaC.dll']
-        dlls = []
-        for base in bases:
-            for major in range(3):
-                for minor in range(10):
-                    candidate = base % (major, minor, arch)
-                    if os.path.isfile(candidate):
-                        dlls.append(candidate)
-        if not dlls:
-            raise IOError("VimbaC.dll not found.")
-        return dlls[-1]
+    Raises
+    ------
+    IOError
+        If VimbaC.dll cannot be found.
+    """
+    bases = ['C:\\Program Files\\Allied Vision Technologies\\AVTVimba_%i.%i\\VimbaC\\Bin\\Win%i\\VimbaC.dll',
+            'C:\\Program Files\\Allied Vision\\Vimba_%i.%i\\VimbaC\\Bin\Win%i\\VimbaC.dll']
+    dlls = []
+    for base in bases:
+        for major in range(3):
+            for minor in range(10):
+                candidate = base % (major, minor, arch)
+                if os.path.isfile(candidate):
+                    dlls.append(candidate)
+    if not dlls:
+        raise IOError("VimbaC.dll not found.")
+    return dlls[-1]
 
-    _cruntime = cdll.LoadLibrary('msvcrt')
+def vimbaC_path():
+    """ Returns the path to the Vimba C DLL. """
     if '64' in platform.architecture()[0]:
-        vimbaC_path = find_win_dll(64)
+        return find_win_dll(64)
     else:
-        vimbaC_path = find_win_dll(32)
-    dll_loader = windll
-else:
-    _cruntime = CDLL("libc.so.6")
-    dll_loader = cdll
-    assert os.environ.get(
-        "GENICAM_GENTL64_PATH"), "you need your GENICAM_GENTL64_PATH environment set.  Make sure you have Vimba installed, and you have loaded the /etc/profile.d/ scripts"
-    vimba_dir = "/".join(os.environ.get("GENICAM_GENTL64_PATH").split("/")
-                         [1:-3])
-    vimbaC_path = "/" + vimba_dir + "/VimbaC/DynamicLib/x86_64bit/libVimbaC.so"
-
-with open(vimbaC_path) as thefile:
-    pass  # NJO i think this is kind of like an os.exists ?
+        return find_win_dll(32)
 
 
 # Callback Function Type
@@ -139,7 +131,7 @@ class VimbaDLL(object):
 
     # Vimba C API DLL
 
-    _vimbaDLL = dll_loader.LoadLibrary(vimbaC_path)
+    _vimbaDLL = windll.LoadLibrary(vimbaC_path())
 
     # version query
     versionQuery = _vimbaDLL.VmbVersionQuery
@@ -434,7 +426,7 @@ class VimbaC_MemoryBlock(object):
     """
 
     # C runtime DLL
-    _crtDLL = _cruntime
+    _crtDLL = cdll.LoadLibrary('msvcrt')
 
     @property
     def block(self):

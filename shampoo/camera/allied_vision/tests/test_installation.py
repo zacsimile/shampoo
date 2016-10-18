@@ -1,7 +1,5 @@
 #!/usr/bin/python
-
-from pymba import Vimba
-
+from ..vimba import Vimba 
 
 def test_installation():
     with Vimba() as vimba:
