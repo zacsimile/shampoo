@@ -8,7 +8,7 @@ import numpy as np
 import os
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
-from .reactor import Reactor, ProcessSafeQueue, ThreadSafeQueue
+from .reactor import Reactor, ThreadSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
 from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector

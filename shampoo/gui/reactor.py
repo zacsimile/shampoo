@@ -6,8 +6,10 @@ from ..reconstruction import Hologram, ReconstructedWave
 
 try:
     from queue import Queue as ThreadSafeQueue  # Python 3
+    from queue import Empty
 except ImportError:
     from Queue import Queue as ThreadSafeQueue  # Python 2
+    from Queue import Empty
 
 def _trivial_function(item):
     return item
@@ -88,13 +90,23 @@ class Reactor(object):
         self.function = function if function is not None else _trivial_function
         self.callback = callback if callback is not None else _trivial_callback
         self.worker = None
+
+        self._keep_running = True
     
     def start(self):
         """ Start the event loop in a separate thread. """
         # Start of the reactor is in a separate method to allow control by subclasses.
-        self.worker = Thread(target = self._event_loop, daemon = True)
+        self.worker = Thread(target = self._event_loop, daemon = False)
         self.worker.start()
     
+    def stop(self):
+        """ 
+        Stop the event loop. This method will block until the event loop
+        thread is joined. 
+        """
+        self._keep_running = False
+        self.worker.join()
+
     def is_alive(self):
         """ Returns True if the event loop is running. Otherwise, returns False. """
         return self.worker.is_alive()
@@ -108,8 +120,16 @@ class Reactor(object):
         return self.function(item)
     
     def _event_loop(self):
-        while True:
-            item = self.input_queue.get()   # Reactor waits indefinitely here
-            reacted = self.function(item)
-            self.callback(reacted)
-            self.output_queue.put(reacted)
+        while self._keep_running:
+            # Don't wait indefinitely here, in case the stop() method has been called
+            try: 
+                item = self.input_queue.get(timeout = 1)   # Reactor waits at most 1 second here
+            except Empty: 
+                pass
+            else:
+                reacted = self.function(item)
+                self.callback(reacted)
+                self.output_queue.put(reacted)
+        
+        # Prepare for next time start() is called
+        self._keep_running = True

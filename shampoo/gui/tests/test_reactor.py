@@ -25,6 +25,16 @@ class TestReactor(unittest.TestCase):
         reactor = Reactor(output_queue = self.out_queue, function = None)
         reactor.start()
         self.assertTrue(reactor.is_alive())
+    
+    def test_reactor_start_and_stop(self):
+        """ Tests whether the reactor can start, stop, and start again """
+        reactor = Reactor(output_queue = self.out_queue)
+        reactor.start()
+        self.assertTrue(reactor.is_alive())
+        reactor.stop()
+        self.assertFalse(reactor.is_alive())
+        reactor.start()
+        self.assertTrue(reactor.is_alive())
 
 if __name__ == '__main__':
     unittest.main()
