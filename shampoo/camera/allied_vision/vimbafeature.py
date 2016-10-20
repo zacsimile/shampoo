@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import vimbastructure as structs
+from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
 from .vimbaexception import VimbaException
 from .vimbadll import VimbaDLL
 from ctypes import *
@@ -82,7 +82,7 @@ class VimbaFeature(object):
         :returns: VimbaFeatureInfo object -- feature information..
         """
         # args for Vimba call
-        featureInfo = structs.VimbaFeatureInfo()
+        featureInfo = VimbaFeatureInfo()
 
         # Vimba DLL will return an error code
         errorCode = VimbaDLL.featureInfoQuery(self._handle,

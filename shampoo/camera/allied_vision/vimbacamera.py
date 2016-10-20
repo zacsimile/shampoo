@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import vimbastructure as structs
+from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
 from .vimbaobject import VimbaObject
 from .vimbaexception import VimbaException
 from .vimbaframe import VimbaFrame
@@ -49,7 +49,7 @@ class VimbaCamera(VimbaObject):
         :returns: VimbaCameraInfo object -- camera information.
         """
         # args for Vimba call
-        cameraInfo = structs.VimbaCameraInfo()
+        cameraInfo = VimbaCameraInfo()
 
         # Vimba DLL will return an error code
         errorCode = VimbaDLL.cameraInfoQuery(self._cameraIdString,

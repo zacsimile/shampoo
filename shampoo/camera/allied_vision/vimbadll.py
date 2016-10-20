@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import vimbastructure as structs
+from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
 from .vimbaexception import VimbaException
 from sys import platform as sys_plat
 import platform
@@ -137,7 +137,7 @@ class VimbaDLL(object):
     versionQuery = _vimbaDLL.VmbVersionQuery
     # returned error code
     versionQuery.restype = c_int32
-    versionQuery.argtypes = (POINTER(structs.VimbaVersion),            # pointer to version structure
+    versionQuery.argtypes = (POINTER(VimbaVersion),            # pointer to version structure
                              c_uint32)                                # version structure size
 
     # startup
@@ -152,7 +152,7 @@ class VimbaDLL(object):
     camerasList = _vimbaDLL.VmbCamerasList
     # returned error code
     camerasList.restype = c_int32
-    camerasList.argtypes = (POINTER(structs.VimbaCameraInfo),        # pointer to camera info structure
+    camerasList.argtypes = (POINTER(VimbaCameraInfo),        # pointer to camera info structure
                             # length of list
                             c_uint32,
                             # pointer to number of cameras
@@ -164,7 +164,7 @@ class VimbaDLL(object):
     cameraInfoQuery.restype = c_int32
     cameraInfoQuery.argtypes = (c_char_p,                            # camera unique id
                                 # pointer to camera info structure
-                                POINTER(structs.VimbaCameraInfo),
+                                POINTER(VimbaCameraInfo),
                                 c_uint32)                            # size of structure
 
     # camera open
@@ -188,7 +188,7 @@ class VimbaDLL(object):
     featuresList.restype = c_int32
     featuresList.argtypes = (c_void_p,                                # handle, in this case camera handle
                              # pointer to feature info structure
-                             POINTER(structs.VimbaFeatureInfo),
+                             POINTER(VimbaFeatureInfo),
                              # list length
                              c_uint32,
                              # pointer to num features found
@@ -202,7 +202,7 @@ class VimbaDLL(object):
                                  # name of feature
                                  c_char_p,
                                  # pointer to feature info structure
-                                 POINTER(structs.VimbaFeatureInfo),
+                                 POINTER(VimbaFeatureInfo),
                                  c_uint32)                            # size of structure
 
     # get the int value of a feature
@@ -320,19 +320,19 @@ class VimbaDLL(object):
     frameAnnounce.restype = c_int32
     frameAnnounce.argtypes = (c_void_p,                                # camera handle
                               # pointer to frame
-                              POINTER(structs.VimbaFrame),
+                              POINTER(VimbaFrame),
                               c_uint32)                                # size of frame
 
     # callback for frame queue
     frameDoneCallback = CB_FUNCTYPE(c_void_p,                     # Return Type
                                     c_void_p,                     # Camera Hanlde
-                                    POINTER(structs.VimbaFrame))  # Pointer to frame
+                                    POINTER(VimbaFrame))  # Pointer to frame
 
     # revoke a frame from the API
     frameRevoke = _vimbaDLL.VmbFrameRevoke
     frameRevoke.restype = c_int32
     frameRevoke.argtypes = (c_void_p,                                # camera handle
-                            POINTER(structs.VimbaFrame))            # pointer to frame
+                            POINTER(VimbaFrame))            # pointer to frame
 
     # revoke all frames assigned to a certain camera
     frameRevokeAll = _vimbaDLL.VmbFrameRevokeAll
@@ -356,14 +356,14 @@ class VimbaDLL(object):
     captureFrameQueue = _vimbaDLL.VmbCaptureFrameQueue
     captureFrameQueue.restype = c_int32
     captureFrameQueue.argtypes = (c_void_p,
-                                  POINTER(structs.VimbaFrame),
+                                  POINTER(VimbaFrame),
                                   c_void_p)                            # callback
 
     # wait for a queued frame to be filled (or dequeued)
     captureFrameWait = _vimbaDLL.VmbCaptureFrameWait
     captureFrameWait.restype = c_int32
     captureFrameWait.argtypes = (c_void_p,                            # camera handle
-                                 POINTER(structs.VimbaFrame),
+                                 POINTER(VimbaFrame),
                                  c_uint32)                            # timeout
 
     # flush the capture queue
@@ -375,7 +375,7 @@ class VimbaDLL(object):
     # list interfaces
     interfacesList = _vimbaDLL.VmbInterfacesList
     interfacesList.restype = c_int32
-    interfacesList.argtypes = (POINTER(structs.VimbaInterfaceInfo),        # pointer to interface info structure
+    interfacesList.argtypes = (POINTER(VimbaInterfaceInfo),        # pointer to interface info structure
                                # length of list
                                c_uint32,
                                # pointer to number of interfaces

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import vimbastructure as structs
+from .vimbastructure import VimbaFrame
 from .vimbaexception import VimbaException
 from .vimbadll import VimbaDLL, VimbaC_MemoryBlock
 from ctypes import *
@@ -50,7 +50,7 @@ class VimbaFrame(object):
         self.pixel_bytes = PIXEL_FORMATS[self._camera.PixelFormat]
 
         # frame structure
-        self._frame = structs.VimbaFrame()
+        self._frame = VimbaFrame()
 
     def announceFrame(self):
         """

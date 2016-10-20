@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import vimbastructure as structs
+from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
 from .vimbaexception import VimbaException
 from .vimbafeature import VimbaFeature
 from .vimbadll import VimbaDLL
@@ -67,7 +67,7 @@ class VimbaObject(object):
         # check it's populated as can't populate it in __init__
         if self._featureInfos is None:
             # args
-            dummyFeatureInfo = structs.VimbaFeatureInfo()
+            dummyFeatureInfo = VimbaFeatureInfo()
             numFound = c_uint32(-1)
 
             # call once to get number of available features
@@ -84,7 +84,7 @@ class VimbaObject(object):
             numFeatures = numFound.value
 
             # args
-            featureInfoArray = (structs.VimbaFeatureInfo * numFeatures)()
+            featureInfoArray = (VimbaFeatureInfo * numFeatures)()
 
             # call again to get the features
             # Vimba DLL will return an error code
