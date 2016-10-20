@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-from . import vimbastructure as structs
+from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
 from .vimbadll import VimbaDLL
 from .vimbaexception import VimbaException
 from .vimbasystem import VimbaSystem
@@ -65,7 +65,7 @@ class Vimba(object):
         """
         if self._interfaceInfos is None:
             # args
-            dummyInterfaceInfo = structs.VimbaInterfaceInfo()
+            dummyInterfaceInfo = VimbaInterfaceInfo()
             numFound = c_uint32(-1)
 
             # call once just to get the number of interfaces
@@ -81,7 +81,7 @@ class Vimba(object):
             numInterfaces = numFound.value
 
             # args
-            interfaceInfoArray = (structs.VimbaInterfaceInfo * numInterfaces)()
+            interfaceInfoArray = (VimbaInterfaceInfo * numInterfaces)()
 
             # call again to get the features
             # Vimba DLL will return an error code
@@ -102,7 +102,7 @@ class Vimba(object):
         :returns: list -- camera info for available cameras.
         """
         # args
-        dummyCameraInfo = structs.VimbaCameraInfo()
+        dummyCameraInfo = VimbaCameraInfo()
         numFound = c_uint32(-1)
 
         # call once just to get the number of cameras
@@ -117,7 +117,7 @@ class Vimba(object):
         numCameras = numFound.value
 
         # args
-        cameraInfoArray = (structs.VimbaCameraInfo * numCameras)()
+        cameraInfoArray = (VimbaCameraInfo * numCameras)()
 
         # call again to get the features
         # Vimba DLL will return an error code
@@ -226,7 +226,7 @@ class Vimba(object):
         :returns: string - Vimba API version info.
         """
         # args
-        versionInfo = structs.VimbaVersion()
+        versionInfo = VimbaVersion()
 
         # Vimba DLL will return an error code
         errorCode = VimbaDLL.versionQuery(versionInfo,
