@@ -59,11 +59,6 @@ class ShampooController(QtCore.QObject):
         self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = self.reconstructed_hologram_signal.emit)
         self.reconstruction_reactor.start()
         self.display_reactor.start()
-
-    def __del__(self):
-        self.reconstruction_reactor.stop()
-        self.display_reactor.stop()
-        super(ShampooController, self).__del__()
     
     @QtCore.pyqtSlot(object)
     def send_data(self, data):
