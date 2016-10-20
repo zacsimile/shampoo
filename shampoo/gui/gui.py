@@ -3,12 +3,11 @@ Graphical User Interface to the SHAMPOO API.
 
 Author: Laurent P. Rene de Cotret
 """
-from multiprocessing import Process
 import numpy as np
 import os
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
-from .reactor import Reactor, ThreadSafeQueue
+from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
 from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector
@@ -16,7 +15,10 @@ from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, Pro
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
 def _reconstruct_hologram(item):
-    """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. """
+    """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. 
+    item : 2-tuple
+        (propagation_distance, hologram)
+    """
     propagation_distance, hologram = item
     if len(propagation_distance) == 1:
         return (propagation_distance, hologram.reconstruct(propagation_distance = propagation_distance[0]))
@@ -49,13 +51,20 @@ class ShampooController(QtCore.QObject):
         output_function: callable
         """
         super(ShampooController, self).__init__(**kwargs)
-        self.reconstructed_queue = ThreadSafeQueue()
+        self.reconstructed_queue = ProcessSafeQueue()
         self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
 
         # Wire up reactor
-        self.reconstruction_reactor = Reactor(function = _reconstruct_hologram, callback = self.reconstructed_hologram_signal.emit)
+        self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
+        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = self.reconstructed_hologram_signal.emit)
         self.reconstruction_reactor.start()
+        self.display_reactor.start()
 
+    def __del__(self):
+        self.reconstruction_reactor.stop()
+        self.display_reactor.stop()
+        super(ShampooController, self).__del__()
+    
     @QtCore.pyqtSlot(object)
     def send_data(self, data):
         """ 
