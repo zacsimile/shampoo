@@ -1,10 +1,36 @@
 
 """
-Camera object that abstracts away the underlying API
+Camera object that abstracts away the underlying API.
+
+Functions
+---------
+available_cameras
+    Prints the available, connected cameras as well as a list of their features.
 """
-from .allied_vision.vimba import Vimba
+from .allied_vision import Vimba
 import numpy as np
 from threading import Thread
+import time
+
+def available_cameras():
+    """
+    Prints the make/model of available cameras, as well as available features.
+    """
+    with Vimba() as vimba:
+            
+        cameraIds = vimba.getCameraIds()
+
+        if not cameraIds:
+            print('No cameras are available.')
+            return
+        
+        for cameraId in cameraIds:
+            print('Allied Vision Camera ID: ', cameraId)
+            camera = vimba.getCamera(cameraId)
+            camera.openCamera()
+            for name in camera.getFeatureNames():
+                print('    Feature: ', name)
+            camera.closeCamera()
 
 class Camera(object):
     """ Template object for cameras that can interact with shampoo.gui """
@@ -44,6 +70,11 @@ class Camera(object):
 
 
 class AlliedVisionCamera(Camera):
+    """
+    Camera object from manufacturer Allied Vision.
+
+    In order to discover available cameras, consider using available_cameras()
+    """
 
     def __init__(self):
         super(AlliedVisionCamera, self).__init__()

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
+from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion, VimbaFeatureInfo, VimbaFrame
 from .vimbaexception import VimbaException
 from sys import platform as sys_plat
 import platform
@@ -50,7 +50,6 @@ else:
 
 
 class VimbaDLL(object):
-
     """
     ctypes directives to make the wrapper class work cleanly,
     talks to VimbaC.dll

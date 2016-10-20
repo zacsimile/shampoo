@@ -13,12 +13,20 @@ from ctypes import *
 class Vimba(object):
 
     """
-    An Allied Vision Technology Vimba API.
-    This API provides access to AVT cameras.
+    An Allied Vision Technology Vimba API. This API provides access to AVT cameras.
+
+    This object is a singleton; only one instance can be created at a time.
     """
 
-    # todo - assign camera info and feature info as own object proeprties
+    _instance = None
 
+    def __new__(cls):
+        """ Ensure that the API is a singleton. """
+        if Vimba._instance is None:
+            Vimba._instance = super(Vimba, cls).__new__(cls)
+        
+        return Vimba._instance
+    
     def __init__(self):
 
         # create own system singleton object
@@ -56,6 +64,11 @@ class Vimba(object):
         on a kernel call after an exception.
         """
         self.shutdown()
+    
+    def __del__(self):
+        self.shutdown()
+        self._instance = None
+        super(Vimba, self).__del__()
 
     def _getInterfaceInfos(self):
         """
