@@ -1,7 +1,10 @@
 """
 Graphical User Interface to the SHAMPOO API.
 
-Author: Laurent P. Rene de Cotret
+Usage
+-----
+>>> from shampoo.gui import run
+>>> run()
 """
 import numpy as np
 import os
@@ -13,6 +16,13 @@ import sys
 from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector
 
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
+
+def run():   
+    app = QtGui.QApplication(sys.argv)
+    app.setStyle(QtGui.QStyleFactory.create('cde'))
+    gui = App()
+    
+    sys.exit(app.exec_())
 
 def _reconstruct_hologram(item):
     """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. 
@@ -78,13 +88,6 @@ class ShampooController(QtCore.QObject):
     def update_propagation_distance(self, item):
         """ Thread-safe PyQt slot API to updating the propagation distance. """
         self.propagation_distance = item
-
-def run():   
-    app = QtGui.QApplication(sys.argv)
-    app.setStyle(QtGui.QStyleFactory.create('cde'))
-    gui = App()
-    
-    sys.exit(app.exec_())
 
 class App(ShampooWidget, QtGui.QMainWindow):
     """

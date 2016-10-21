@@ -1,10 +1,18 @@
+"""
+Underlying Objects abstracting concurrent operations in SHAMPOO's GUI.
 
+Classes
+-------
+Reactor
+
+ProcessReactor
+"""
 from multiprocessing import Process, Pipe
 from multiprocessing import Queue as ProcessSafeQueue
 import numpy as np
+from ..reconstruction import Hologram, ReconstructedWave
 from threading import Thread
 from time import sleep
-from ..reconstruction import Hologram, ReconstructedWave
 
 try:
     from queue import Queue as ThreadSafeQueue  # Python 3
@@ -36,12 +44,12 @@ class Reactor(object):
     -------
     start
         Start the reactor. Input can be queued before this method is called.
+    stop
+        Stop the reactor. Can be restarted using start().
     send_item
         Add an item to reactor, adding it to the input queue.
     is_alive
         Check whether the reactor is still running.
-    reaction
-        Method that is called on every item in the input queue. User-facing for subclassing purposes.
 
     Example
     -------
@@ -51,6 +59,8 @@ class Reactor(object):
     >>> test.send_item('foobar')
 
     Chaining reactors:
+    >>> from __future__ import print_function
+    >>> #from Queue import Queue # Python 2
     >>> from queue import Queue   # Python 3
     >>>
     >>> messages = Queue()
@@ -98,6 +108,7 @@ class Reactor(object):
     def start(self):
         """ Start the event loop in a separate thread. """
         # Start of the reactor is in a separate method to allow control by subclasses.
+        self._keep_running = True
         self.worker = Thread(target = self._event_loop, daemon = False)
         self.worker.start()
     
@@ -120,31 +131,54 @@ class Reactor(object):
         """ Adds an item to the input queue. """
         self.input_queue.put(item)
     
-    def reaction(self, item):
-        """ Method applied to every item in the input queue. Provided as an easy mean to subclass. """
-        return self.function(item)
-    
     def _event_loop(self):
         while self._keep_running:
             # Don't wait indefinitely here, in case the stop() method has been called
             try: 
-                item = self.input_queue.get(timeout = 1)   # Reactor waits at most 1 second here
+                item = self.input_queue.get(timeout = 1)
             except Empty: 
                 pass
             else:
                 reacted = self.function(item)
                 self.callback(reacted)
                 self.output_queue.put(reacted)
-        
-        # Prepare for next time start() is called
-        self._keep_running = True
 
 class ProcessReactor(Reactor):
     """
     Reactor running an event loop in a separate process.
+
+    Methods
+    -------
+    start
+        Start the reactor. Input can be queued before this method is called.
+    stop
+        Stop the reactor. Can be restarted using start().
+    send_item
+        Add an item to reactor, adding it to the input queue.
+    is_alive
+        Check whether the reactor is still running.
+
+    Examples
+    --------
+    Callbacks are unavailable for this subclass because typical callbacks (e.g. emitting Qt signals) must be done within
+    the main process. To implement a callback, chain a ProcessReactor and a Reactor:
+    >>> from __future__ import print_function
+    >>> from multiprocessing import Queue
+    >>>
+    >>> messages = Queue()
+    >>> results = Queue()
+    >>>
+    >>> def some_func(item): return item
+    >>> 
+    >>> # Apply some_func on items in a separate process, and print results
+    >>> # using a callback in a second reactor in the main process
+    >>> reactor = ProcessReactor(output_queue = messages, function = some_func)
+    >>> callback_reactor = Reactor(input_queue = messages, output_queue = results, callback = print)
+    >>> reactor.start(), callback_reactor.start()
+    >>> reactor.send_item('foobar')
     """
 
-    def __init__(self, input_queue = None, output_queue = None, function = None, callback = None, **kwargs):
+    def __init__(self, input_queue = None, function = None, output_queue = None, **kwargs):
         """
         Parameters
         ----------
@@ -156,38 +190,34 @@ class ProcessReactor(Reactor):
         function : callable or None, optional
             Function of one argument which will be applied to all items in input_queue. If None (default), 
             a trivial function that returns the input is used.
-        callback : callable or None, optional
-            Called on each item before being stored in the output queue. Ideal for emitting Qt signals or printing.
         
         Raises
         ------
         ValueError
-            If callback and output_queue are both None.
+            If no output_queue is provided.
         """
-        if not any((output_queue, callback)):      # output_queue and callback are None
-            raise ValueError('output_queue and callback cannot be both None.')
         
-        self.input_queue = input_queue if input_queue is not None else ProcessSafeQueue()
-        self.output_queue = output_queue if output_queue is not None else VoidQueue()
-        self.function = function if function is not None else _trivial_function
-        self.callback = callback if callback is not None else _trivial_callback
-        self.worker = None
+        if output_queue is None:
+            raise ValueError('No output_queue was provided.')
+        
+        input_queue = input_queue if input_queue is not None else ProcessSafeQueue()
+        output_queue = output_queue
+        function = function if function is not None else _trivial_function
+
+        super(ProcessReactor, self).__init__(input_queue = input_queue, function = function, output_queue = output_queue, callback = None)
     
     def start(self):
-        """ Start the event loop in a separate thread. """
+        """ Start the event loop in a separate process. """
         # Start of the reactor is in a separate method to allow control by subclasses.
-        self.worker = Process(target = _func_event_loop, args = (self.input_queue, self.output_queue, self.reaction, self.callback))
+        self.worker = Process(target = _func_event_loop, args = (self.input_queue, self.output_queue, self.reaction))
         self.worker.start()
     
     def stop(self):
-        """ 
-        Stop the event loop. This method will block until the event loop
-        thread is joined. 
-        """
+        """ Stop the event loop. This method will block until the event loop process is joined. """
         self.worker.terminate()
         self.worker.join()
 
-def _func_event_loop(input_queue, output_queue, function, callback):
+def _func_event_loop(input_queue, output_queue, function):
     """ Functional form of the reactor event loop. """
     while True:
         try:
@@ -195,6 +225,4 @@ def _func_event_loop(input_queue, output_queue, function, callback):
         except Empty:
             pass
         else:
-            reacted = function(item)
-            callback(item)
-            output_queue.put(reacted)
+            output_queue.put(function(item))
