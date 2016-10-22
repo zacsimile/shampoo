@@ -91,7 +91,7 @@ class AlliedVisionCamera(Camera):
     
     def connect(self):
         self._api.startup()
-        self._api.runFeatureCommand('GeVDiscoveryAllOnce')
+        self._api.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')
         
         # Get camera
         # TODO: select from list of cameras

@@ -32,6 +32,7 @@ class VimbaObject(object):
     def __getattr__(self, attr):
 
         # if a feature value requested (requires object (camera) open)
+        attr = bytes(attr, 'utf-8')
         if attr in self.getFeatureNames():
             return VimbaFeature(attr, self._handle).value
 
@@ -46,6 +47,7 @@ class VimbaObject(object):
         # set privates as normal
         # check this first to allow all privates to set normally
         # and avoid recursion errors
+        attr = bytes(attr, 'utf-8')
         if attr.startswith('_'):
             super(VimbaObject, self).__setattr__(attr, val)
 
@@ -118,6 +120,7 @@ class VimbaObject(object):
         """
         # don't do this live as we already have this info
         # return info object, if it exists
+        featureName = bytes(featureName, 'utf-8')
         for featInfo in self._getFeatureInfos():
             if featInfo.name == featureName:
                 return featInfo
@@ -136,8 +139,8 @@ class VimbaObject(object):
         :returns: tuple -- range as (feature min value, feature max value).
         """
         # can't cache this, need to look it up live
+        featureName = bytes(featureName, 'utf-8')
         return VimbaFeature(featureName, self._handle).range
-
     def runFeatureCommand(self, featureName):
         """
         Run a feature command.
