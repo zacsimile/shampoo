@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
+from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion,  VimbaFeatureInfo
 from .vimbaexception import VimbaException
 from .vimbadll import VimbaDLL
 from ctypes import *

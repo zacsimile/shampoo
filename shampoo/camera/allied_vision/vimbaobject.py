@@ -48,8 +48,8 @@ class VimbaObject(object):
         # check this first to allow all privates to set normally
         # and avoid recursion errors
         attr = bytes(attr, 'utf-8')
-        if attr.startswith('_'):
-            super(VimbaObject, self).__setattr__(attr, val)
+        if attr.startswith(b'_'):
+            super(VimbaObject, self).__setattr__(attr.decode('utf-8'), val)
 
         # if it's an actual camera feature (requires camera open)
         elif attr in self.getFeatureNames():
@@ -57,7 +57,7 @@ class VimbaObject(object):
 
         # otherwise just set the attribute value as normal
         else:
-            super(VimbaObject, self).__setattr__(attr, val)
+            super(VimbaObject, self).__setattr__(attr.decode('utf-8'), val)
 
     def _getFeatureInfos(self):
         """

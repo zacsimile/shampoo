@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .vimbastructure import VimbaFrame
+from .vimbastructure import VimbaFrame as StructuralVimbaFrame
 from .vimbaexception import VimbaException
 from .vimbadll import VimbaDLL, VimbaC_MemoryBlock
 from ctypes import *
@@ -15,23 +15,23 @@ Map pixel formats to bytes per pixel.
     The packed formats marked with "?" have not been tested.
 """
 PIXEL_FORMATS = {
-    "Mono8": 1,
-    "Mono12": 2,
-    "Mono12Packed": 1.5,  # ?
-    "Mono14": 2,
-    "Mono16": 2,
-    "RGB8Packed": 3,
-    "BGR8Packed": 3,
-    "RGBA8Packed": 4,
-    "BGRA8Packed": 4,
-    "YUV411Packed": 4/3.0,  # ?
-    "YUV422Packed": 2,
-    "YUV444Packed": 3,
-    "BayerRG8": 1,
-    "BayerRG12": 2,
-    "BayerGR8": 1,
-    "BayerGR12": 2,
-    "BayerGR12Packed": 1.5,  # ?
+    b"Mono8": 1,
+    b"Mono12": 2,
+    b"Mono12Packed": 1.5,  # ?
+    b"Mono14": 2,
+    b"Mono16": 2,
+    b"RGB8Packed": 3,
+    b"BGR8Packed": 3,
+    b"RGBA8Packed": 4,
+    b"BGRA8Packed": 4,
+    b"YUV411Packed": 4/3.0,  # ?
+    b"YUV422Packed": 2,
+    b"YUV444Packed": 3,
+    b"BayerRG8": 1,
+    b"BayerRG12": 2,
+    b"BayerGR8": 1,
+    b"BayerGR12": 2,
+    b"BayerGR12Packed": 1.5,  # ?
 }
 
 
@@ -50,7 +50,7 @@ class VimbaFrame(object):
         self.pixel_bytes = PIXEL_FORMATS[self._camera.PixelFormat]
 
         # frame structure
-        self._frame = VimbaFrame()
+        self._frame = StructuralVimbaFrame()
 
     def announceFrame(self):
         """
