@@ -209,7 +209,7 @@ class ProcessReactor(Reactor):
     def start(self):
         """ Start the event loop in a separate process. """
         # Start of the reactor is in a separate method to allow control by subclasses.
-        self.worker = Process(target = _func_event_loop, args = (self.input_queue, self.output_queue, self.reaction))
+        self.worker = Process(target = _func_event_loop, args = (self.input_queue, self.output_queue, self.function))
         self.worker.start()
     
     def stop(self):

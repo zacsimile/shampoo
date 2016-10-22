@@ -88,7 +88,6 @@ class Vimba(object):
                                                 byref(numFound),
                                                 sizeof(dummyInterfaceInfo))
             if errorCode != 0:
-                print(errorCode)
                 raise VimbaException(errorCode)
 
             numInterfaces = numFound.value

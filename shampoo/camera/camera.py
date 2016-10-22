@@ -91,6 +91,7 @@ class AlliedVisionCamera(Camera):
     
     def connect(self):
         self._api.startup()
+        self._api.runFeatureCommand('GeVDiscoveryAllOnce')
         
         # Get camera
         # TODO: select from list of cameras
@@ -120,21 +121,24 @@ class AlliedVisionCamera(Camera):
         self._live_acquisition_thread = Thread(target = self._live_acquisition, args = (image_queue, callback))
         self._live_acquisition_thread.start()
 
-    def _live_acquisition(self, image_queue, callback):
+    def _live_acquisition(self, image_queue):
         """ Live acquisition of the camera in a separate thread. """
         while self._keep_acquiring:
             self._frame.queueFrameCapture()
             img = np.ndarray(buffer = self._frame.getBufferByteData(), dtype = n.uint8, shape = self.resolution)
             self.image_queue.put(img)
-            callback(img)
 
         # Prepare for next time self.start_acquisition() is called
         self._keep_acquiring = True
     
     def stop_acquisition(self):
+        # Stop the thread
+        self._keep_acquiring = False
+        self._live_acquisition_thread.join()
+        self._keep_acquiring = True
+
         self._camera.endCapture()
         self._camera.revokeAllFrames()
-
     
     def disconnect(self):
         try:

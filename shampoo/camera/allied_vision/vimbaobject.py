@@ -145,6 +145,9 @@ class VimbaObject(object):
         :param featureName: the name of the feature.
         """
         # run a command
+        # Due to string handling in Python 2 vs 3, feature names must be of byte type,
+        # not str: e.g. b'GeVDiscoveryOnce'
+        featureName = bytes(featureName, 'utf-8')
         errorCode = VimbaDLL.featureCommandRun(self._handle,
                                                featureName)
         if errorCode != 0:
