@@ -9,9 +9,8 @@ available_cameras
 """
 from .allied_vision import Vimba
 from ..gui.reactor import Reactor, ThreadSafeQueue
-import numpy as np
 from threading import Thread
-import time
+import pyqtgraph
 
 def available_cameras():
     """
@@ -40,6 +39,9 @@ class Camera(object):
     def resolution(self):
         """ Shape of the image data (height, width) """
         raise NotImplementedError
+        
+    def snapshot(self):
+        raise NotImplementedError
 
     def start_acquisition(self, image_queue = None, callback = None):
         """
@@ -67,7 +69,6 @@ class Camera(object):
     
     def __del__(self):
         self.disconnect()
-        super(Camera, self).__del__()
 
 
 class AlliedVisionCamera(Camera):
@@ -108,43 +109,29 @@ class AlliedVisionCamera(Camera):
             pass
 
         self._frame = self._camera.getFrame()
-    
-    def start_acquisition(self, image_queue = None):
-
-        self._frame.announceFrame()
+        self._frame.announceFrame()        
         self._camera.startCapture()
-
-        #TODO: run in a separate process?
-        self._live_acquisition_thread = Thread(target = self._live_acquisition, args = (image_queue,))
-        self._live_acquisition_thread.start()
-    
+       
     def snapshot(self):
         """
-        Returns an image from the camera as soon as possible.
+        Returns an image from the camera as soon as one is available.
 
         Returns
         -------
         img : ndarray
         """
         self._frame.queueFrameCapture()
-        self._frame.queueFrameCapture()
         self._camera.runFeatureCommand('AcquisitionStart')
         self._camera.runFeatureCommand('AcquisitionStop')
         self._frame.waitFrameCapture(1000)
-        return self._frame.getImage()
-    
-    def live_view(self):
-        """ 
-        Presents a live view from the camera. For testing purposes only.
-        """
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        plt.show()
+        img = self._frame.getImage()
+        return img
+        
+    def start_acquisition(self, image_queue):
 
-        image_queue = ThreadSafeQueue()
-        display_reactor = Reactor(input_queue = image_queue, callback = plt.imshow)
-        display_reactor.start()
-        self.start_acquisition(image_queue = image_queue)
+        #TODO: run in a separate process?
+        self._live_acquisition_thread = Thread(target = self._live_acquisition, args = (image_queue,))
+        self._live_acquisition_thread.start()
 
     def _live_acquisition(self, image_queue):
         """ 
@@ -156,24 +143,24 @@ class AlliedVisionCamera(Camera):
         """
         while self._keep_acquiring:
             img = self.snapshot()
-            self.image_queue.put(img)
+            image_queue.put(img)
 
         # Prepare for next time self.start_acquisition() is called
         self._keep_acquiring = True
-    
+        
     def stop_acquisition(self):
         # Stop the thread
         self._keep_acquiring = False
         self._live_acquisition_thread.join()
-
-        self._camera.endCapture()
-        self._camera.revokeAllFrames()
     
     def disconnect(self):
+        
         try:
             self.stop_acquisition()
         except:
             pass
-
+        
+        self._camera.endCapture()
+        self._camera.revokeAllFrames()
         self._camera.closeCamera()
         self._api.shutdown()
