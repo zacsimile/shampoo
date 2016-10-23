@@ -8,6 +8,7 @@ available_cameras
     Prints the available, connected cameras as well as a list of their features.
 """
 from .allied_vision import Vimba
+from ..gui.reactor import Reactor, ThreadSafeQueue
 import numpy as np
 from threading import Thread
 import time
@@ -108,24 +109,53 @@ class AlliedVisionCamera(Camera):
 
         self._frame = self._camera.getFrame()
     
-    def start_acquisition(self, image_queue = None, callback = None):
-        if not any( (image_queue, callback) ):
-            raise ValueError('image_queue and callback cannot be both None')
+    def start_acquisition(self, image_queue = None):
 
-        #TODO: deal with possibly image_queue = None or callback = None
-        
         self._frame.announceFrame()
         self._camera.startCapture()
 
         #TODO: run in a separate process?
-        self._live_acquisition_thread = Thread(target = self._live_acquisition, args = (image_queue, callback))
+        self._live_acquisition_thread = Thread(target = self._live_acquisition, args = (image_queue,))
         self._live_acquisition_thread.start()
+    
+    def snapshot(self):
+        """
+        Returns an image from the camera as soon as possible.
+
+        Returns
+        -------
+        img : ndarray
+        """
+        self._frame.queueFrameCapture()
+        self._frame.queueFrameCapture()
+        self._camera.runFeatureCommand('AcquisitionStart')
+        self._camera.runFeatureCommand('AcquisitionStop')
+        self._frame.waitFrameCapture(1000)
+        return self._frame.getImage()
+    
+    def live_view(self):
+        """ 
+        Presents a live view from the camera. For testing purposes only.
+        """
+        import matplotlib.pyplot as plt
+        fig = plt.figure()
+        plt.show()
+
+        image_queue = ThreadSafeQueue()
+        display_reactor = Reactor(input_queue = image_queue, callback = plt.imshow)
+        display_reactor.start()
+        self.start_acquisition(image_queue = image_queue)
 
     def _live_acquisition(self, image_queue):
-        """ Live acquisition of the camera in a separate thread. """
+        """ 
+        Live acquisition of the camera in a separate thread. 
+        
+        image_queue : Queue instance
+            Thread-safe Queue object
+        callback : callable, optional
+        """
         while self._keep_acquiring:
-            self._frame.queueFrameCapture()
-            img = np.ndarray(buffer = self._frame.getBufferByteData(), dtype = n.uint8, shape = self.resolution)
+            img = self.snapshot()
             self.image_queue.put(img)
 
         # Prepare for next time self.start_acquisition() is called
@@ -135,7 +165,6 @@ class AlliedVisionCamera(Camera):
         # Stop the thread
         self._keep_acquiring = False
         self._live_acquisition_thread.join()
-        self._keep_acquiring = True
 
         self._camera.endCapture()
         self._camera.revokeAllFrames()
