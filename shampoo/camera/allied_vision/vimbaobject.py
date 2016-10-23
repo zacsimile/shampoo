@@ -43,7 +43,8 @@ class VimbaObject(object):
 
     # override setattr for undefined attributes
     def __setattr__(self, attr, val):
-
+        if type(val) == str:
+            val = bytes(val, 'utf-8')
         # set privates as normal
         # check this first to allow all privates to set normally
         # and avoid recursion errors

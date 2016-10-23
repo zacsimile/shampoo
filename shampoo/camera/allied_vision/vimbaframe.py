@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+
+import numpy as np
 from .vimbastructure import VimbaFrame as StructuralVimbaFrame
 from .vimbaexception import VimbaException
 from .vimbadll import VimbaDLL, VimbaC_MemoryBlock
