@@ -129,292 +129,293 @@ class VimbaDLL(object):
     # -- VmbRegistersWrite()
 
     # Vimba C API DLL
+    def __init__(self):
 
-    _vimbaDLL = windll.LoadLibrary(vimbaC_path())
+        self._vimbaDLL = windll.LoadLibrary(vimbaC_path())
 
-    # version query
-    versionQuery = _vimbaDLL.VmbVersionQuery
-    # returned error code
-    versionQuery.restype = c_int32
-    versionQuery.argtypes = (POINTER(VimbaVersion),            # pointer to version structure
-                             c_uint32)                                # version structure size
+        # version query
+        self.versionQuery = self._vimbaDLL.VmbVersionQuery
+        # returned error code
+        self.versionQuery.restype = c_int32
+        self.versionQuery.argtypes = (POINTER(VimbaVersion),            # pointer to version structure
+                                c_uint32)                                # version structure size
 
-    # startup
-    startup = _vimbaDLL.VmbStartup
-    # returned error code
-    startup.restype = c_int32
+        # startup
+        self.startup = self._vimbaDLL.VmbStartup
+        # returned error code
+        self.startup.restype = c_int32
 
-    # shutdown
-    shutdown = _vimbaDLL.VmbShutdown
+        # shutdown
+        self.shutdown = self._vimbaDLL.VmbShutdown
 
-    # list cameras
-    camerasList = _vimbaDLL.VmbCamerasList
-    # returned error code
-    camerasList.restype = c_int32
-    camerasList.argtypes = (POINTER(VimbaCameraInfo),        # pointer to camera info structure
-                            # length of list
+        # list cameras
+        self.camerasList = self._vimbaDLL.VmbCamerasList
+        # returned error code
+        self.camerasList.restype = c_int32
+        self.camerasList.argtypes = (POINTER(VimbaCameraInfo),        # pointer to camera info structure
+                                # length of list
+                                c_uint32,
+                                # pointer to number of cameras
+                                POINTER(c_uint32),
+                                c_uint32)                                # camera info structure size
+
+        # camera info query
+        self.cameraInfoQuery = self._vimbaDLL.VmbCameraInfoQuery
+        self.cameraInfoQuery.restype = c_int32
+        self.cameraInfoQuery.argtypes = (c_char_p,                            # camera unique id
+                                    # pointer to camera info structure
+                                    POINTER(VimbaCameraInfo),
+                                    c_uint32)                            # size of structure
+
+        # camera open
+        self.cameraOpen = self._vimbaDLL.VmbCameraOpen
+        # returned error code
+        self.cameraOpen.restype = c_int32
+        self.cameraOpen.argtypes = (c_char_p,                                # camera unique id
+                            # access mode
                             c_uint32,
-                            # pointer to number of cameras
-                            POINTER(c_uint32),
-                            c_uint32)                                # camera info structure size
+                            c_void_p)                                # camera handle, pointer to a pointer
 
-    # camera info query
-    cameraInfoQuery = _vimbaDLL.VmbCameraInfoQuery
-    cameraInfoQuery.restype = c_int32
-    cameraInfoQuery.argtypes = (c_char_p,                            # camera unique id
-                                # pointer to camera info structure
-                                POINTER(VimbaCameraInfo),
-                                c_uint32)                            # size of structure
+        # camera close
+        self.cameraClose = self._vimbaDLL.VmbCameraClose
+        # returned error code
+        self.cameraClose.restype = c_int32
+        # camera handle
+        self.cameraClose.argtypes = (c_void_p,)
 
-    # camera open
-    cameraOpen = _vimbaDLL.VmbCameraOpen
-    # returned error code
-    cameraOpen.restype = c_int32
-    cameraOpen.argtypes = (c_char_p,                                # camera unique id
-                           # access mode
-                           c_uint32,
-                           c_void_p)                                # camera handle, pointer to a pointer
+        # list features
+        self.featuresList = self._vimbaDLL.VmbFeaturesList
+        self.featuresList.restype = c_int32
+        self.featuresList.argtypes = (c_void_p,                                # handle, in this case camera handle
+                                # pointer to feature info structure
+                                POINTER(VimbaFeatureInfo),
+                                # list length
+                                c_uint32,
+                                # pointer to num features found
+                                POINTER(c_uint32),
+                                c_uint32)                                # feature info size
 
-    # camera close
-    cameraClose = _vimbaDLL.VmbCameraClose
-    # returned error code
-    cameraClose.restype = c_int32
-    # camera handle
-    cameraClose.argtypes = (c_void_p,)
+        # feature info query
+        self.featureInfoQuery = self._vimbaDLL.VmbFeatureInfoQuery
+        self.featureInfoQuery.restype = c_int32
+        self.featureInfoQuery.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                    # name of feature
+                                    c_char_p,
+                                    # pointer to feature info structure
+                                    POINTER(VimbaFeatureInfo),
+                                    c_uint32)                            # size of structure
 
-    # list features
-    featuresList = _vimbaDLL.VmbFeaturesList
-    featuresList.restype = c_int32
-    featuresList.argtypes = (c_void_p,                                # handle, in this case camera handle
-                             # pointer to feature info structure
-                             POINTER(VimbaFeatureInfo),
-                             # list length
-                             c_uint32,
-                             # pointer to num features found
-                             POINTER(c_uint32),
-                             c_uint32)                                # feature info size
-
-    # feature info query
-    featureInfoQuery = _vimbaDLL.VmbFeatureInfoQuery
-    featureInfoQuery.restype = c_int32
-    featureInfoQuery.argtypes = (c_void_p,                            # handle, in this case camera handle
-                                 # name of feature
-                                 c_char_p,
-                                 # pointer to feature info structure
-                                 POINTER(VimbaFeatureInfo),
-                                 c_uint32)                            # size of structure
-
-    # get the int value of a feature
-    featureIntGet = _vimbaDLL.VmbFeatureIntGet
-    featureIntGet.restype = c_int32
-    featureIntGet.argtypes = (c_void_p,                                # handle, in this case camera handle
-                              # name of the feature
-                              c_char_p,
-                              POINTER(c_int64))                        # value to get
-
-    # set the int value of a feature
-    featureIntSet = _vimbaDLL.VmbFeatureIntSet
-    featureIntSet.restype = c_int32
-    featureIntSet.argtypes = (c_void_p,                                # handle, in this case camera handle
-                              # name of the feature
-                              c_char_p,
-                              c_int64)                                # value to set    # get the value of an integer feature
-
-    # query the range of values of the feature
-    featureIntRangeQuery = _vimbaDLL.VmbFeatureIntRangeQuery
-    featureIntRangeQuery.restype = c_int32
-    featureIntRangeQuery.argtypes = (c_void_p,                        # handle
-                                     # name of the feature
-                                     c_char_p,
-                                     # min range
-                                     POINTER(c_int64),
-                                     POINTER(c_int64))                # max range
-
-    # get the float value of a feature
-    featureFloatGet = _vimbaDLL.VmbFeatureFloatGet
-    featureFloatGet.restype = c_int32
-    featureFloatGet.argtypes = (c_void_p,                            # handle, in this case camera handle
+        # get the int value of a feature
+        self.featureIntGet = self._vimbaDLL.VmbFeatureIntGet
+        self.featureIntGet.restype = c_int32
+        self.featureIntGet.argtypes = (c_void_p,                                # handle, in this case camera handle
                                 # name of the feature
                                 c_char_p,
-                                POINTER(c_double))                    # value to get
+                                POINTER(c_int64))                        # value to get
 
-    # set the float value of a feature
-    featureFloatSet = _vimbaDLL.VmbFeatureFloatSet
-    featureFloatSet.restype = c_int32
-    featureFloatSet.argtypes = (c_void_p,                            # handle, in this case camera handle
+        # set the int value of a feature
+        self.featureIntSet = self._vimbaDLL.VmbFeatureIntSet
+        self.featureIntSet.restype = c_int32
+        self.featureIntSet.argtypes = (c_void_p,                                # handle, in this case camera handle
                                 # name of the feature
                                 c_char_p,
-                                c_double)                            # value to set
+                                c_int64)                                # value to set    # get the value of an integer feature
 
-    # query the range of values of the feature
-    featureFloatRangeQuery = _vimbaDLL.VmbFeatureFloatRangeQuery
-    featureFloatRangeQuery.restype = c_int32
-    featureFloatRangeQuery.argtypes = (c_void_p,                    # handle
-                                       # name of the feature
-                                       c_char_p,
-                                       # min range
-                                       POINTER(c_double),
-                                       POINTER(c_double))            # max range
+        # query the range of values of the feature
+        self.featureIntRangeQuery = self._vimbaDLL.VmbFeatureIntRangeQuery
+        self.featureIntRangeQuery.restype = c_int32
+        self.featureIntRangeQuery.argtypes = (c_void_p,                        # handle
+                                        # name of the feature
+                                        c_char_p,
+                                        # min range
+                                        POINTER(c_int64),
+                                        POINTER(c_int64))                # max range
 
-    # get the enum value of a feature
-    featureEnumGet = _vimbaDLL.VmbFeatureEnumGet
-    featureEnumGet.restype = c_int32
-    featureEnumGet.argtypes = (c_void_p,                            # handle, in this case camera handle
-                               # name of the feature
-                               c_char_p,
-                               POINTER(c_char_p))                    # value to get
+        # get the float value of a feature
+        self.featureFloatGet = self._vimbaDLL.VmbFeatureFloatGet
+        self.featureFloatGet.restype = c_int32
+        self.featureFloatGet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                    # name of the feature
+                                    c_char_p,
+                                    POINTER(c_double))                    # value to get
 
-    # set the enum value of a feature
-    featureEnumSet = _vimbaDLL.VmbFeatureEnumSet
-    featureEnumSet.restype = c_int32
-    featureEnumSet.argtypes = (c_void_p,                            # handle, in this case camera handle
-                               # name of the feature
-                               c_char_p,
-                               c_char_p)                            # value to set
+        # set the float value of a feature
+        self.featureFloatSet = self._vimbaDLL.VmbFeatureFloatSet
+        self.featureFloatSet.restype = c_int32
+        self.featureFloatSet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                    # name of the feature
+                                    c_char_p,
+                                    c_double)                            # value to set
 
-    # get the string value of a feature
-    featureStringGet = _vimbaDLL.VmbFeatureStringGet
-    featureStringGet.restype = c_int32
-    featureStringGet.argtypes = (c_void_p,                            # handle, in this case camera handle
-                                 # name of the feature
-                                 c_char_p,
-                                 # string buffer to fill
-                                 c_char_p,
-                                 # size of the input buffer
-                                 c_uint32,
-                                 POINTER(c_uint32))                    # string buffer to fill
+        # query the range of values of the feature
+        self.featureFloatRangeQuery = self._vimbaDLL.VmbFeatureFloatRangeQuery
+        self.featureFloatRangeQuery.restype = c_int32
+        self.featureFloatRangeQuery.argtypes = (c_void_p,                    # handle
+                                        # name of the feature
+                                        c_char_p,
+                                        # min range
+                                        POINTER(c_double),
+                                        POINTER(c_double))            # max range
 
-    # set the string value of a feature
-    featureStringSet = _vimbaDLL.VmbFeatureStringSet
-    featureStringSet.restype = c_int32
-    featureStringSet.argtypes = (c_void_p,                            # handle, in this case camera handle
-                                 # name of the feature
-                                 c_char_p,
-                                 c_char_p)                            # value to set
+        # get the enum value of a feature
+        self.featureEnumGet = self._vimbaDLL.VmbFeatureEnumGet
+        self.featureEnumGet.restype = c_int32
+        self.featureEnumGet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                # name of the feature
+                                c_char_p,
+                                POINTER(c_char_p))                    # value to get
 
-    # get the boolean value of a feature
-    featureBoolGet = _vimbaDLL.VmbFeatureBoolGet
-    featureBoolGet.restype = c_int32
-    featureBoolGet.argtypes = (c_void_p,                            # handle, in this case camera handle
-                               # name of the feature
-                               c_char_p,
-                               POINTER(c_bool))                        # value to get
+        # set the enum value of a feature
+        self.featureEnumSet = self._vimbaDLL.VmbFeatureEnumSet
+        self.featureEnumSet.restype = c_int32
+        self.featureEnumSet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                # name of the feature
+                                c_char_p,
+                                c_char_p)                            # value to set
 
-    # set the boolean value of a feature
-    featureBoolSet = _vimbaDLL.VmbFeatureBoolSet
-    featureBoolSet.restype = c_int32
-    featureBoolSet.argtypes = (c_void_p,                            # handle, in this case camera handle
-                               # name of the feature
-                               c_char_p,
-                               c_bool)                                # value to set
+        # get the string value of a feature
+        self.featureStringGet = self._vimbaDLL.VmbFeatureStringGet
+        self.featureStringGet.restype = c_int32
+        self.featureStringGet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                    # name of the feature
+                                    c_char_p,
+                                    # string buffer to fill
+                                    c_char_p,
+                                    # size of the input buffer
+                                    c_uint32,
+                                    POINTER(c_uint32))                    # string buffer to fill
 
-    # run a feature command
-    featureCommandRun = _vimbaDLL.VmbFeatureCommandRun
-    featureCommandRun.restype = c_int32
-    featureCommandRun.argtypes = (c_void_p,                            # handle for a module that exposes features
-                                  c_char_p)                            # name of the command feature
+        # set the string value of a feature
+        self.featureStringSet = self._vimbaDLL.VmbFeatureStringSet
+        self.featureStringSet.restype = c_int32
+        self.featureStringSet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                    # name of the feature
+                                    c_char_p,
+                                    c_char_p)                            # value to set
 
-    # announce frames to the API that may be queued for frame capturing later
-    frameAnnounce = _vimbaDLL.VmbFrameAnnounce
-    frameAnnounce.restype = c_int32
-    frameAnnounce.argtypes = (c_void_p,                                # camera handle
-                              # pointer to frame
-                              POINTER(VimbaFrame),
-                              c_uint32)                                # size of frame
+        # get the boolean value of a feature
+        self.featureBoolGet = self._vimbaDLL.VmbFeatureBoolGet
+        self.featureBoolGet.restype = c_int32
+        self.featureBoolGet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                # name of the feature
+                                c_char_p,
+                                POINTER(c_bool))                        # value to get
 
-    # callback for frame queue
-    frameDoneCallback = CB_FUNCTYPE(c_void_p,                     # Return Type
-                                    c_void_p,                     # Camera Hanlde
-                                    POINTER(VimbaFrame))  # Pointer to frame
+        # set the boolean value of a feature
+        self.featureBoolSet = self._vimbaDLL.VmbFeatureBoolSet
+        self.featureBoolSet.restype = c_int32
+        self.featureBoolSet.argtypes = (c_void_p,                            # handle, in this case camera handle
+                                # name of the feature
+                                c_char_p,
+                                c_bool)                                # value to set
 
-    # revoke a frame from the API
-    frameRevoke = _vimbaDLL.VmbFrameRevoke
-    frameRevoke.restype = c_int32
-    frameRevoke.argtypes = (c_void_p,                                # camera handle
-                            POINTER(VimbaFrame))            # pointer to frame
+        # run a feature command
+        self.featureCommandRun = self._vimbaDLL.VmbFeatureCommandRun
+        self.featureCommandRun.restype = c_int32
+        self.featureCommandRun.argtypes = (c_void_p,                            # handle for a module that exposes features
+                                    c_char_p)                            # name of the command feature
 
-    # revoke all frames assigned to a certain camera
-    frameRevokeAll = _vimbaDLL.VmbFrameRevokeAll
-    frameRevokeAll.restype = c_int32
-    # camera handle
-    frameRevokeAll.argtypes = (c_void_p,)
+        # announce frames to the API that may be queued for frame capturing later
+        self.frameAnnounce = self._vimbaDLL.VmbFrameAnnounce
+        self.frameAnnounce.restype = c_int32
+        self.frameAnnounce.argtypes = (c_void_p,                                # camera handle
+                                # pointer to frame
+                                POINTER(VimbaFrame),
+                                c_uint32)                                # size of frame
 
-    # prepare the API for incoming frames
-    captureStart = _vimbaDLL.VmbCaptureStart
-    captureStart.restype = c_int32
-    # camera handle
-    captureStart.argtypes = (c_void_p,)
+        # callback for frame queue
+        self.frameDoneCallback = CB_FUNCTYPE(c_void_p,                     # Return Type
+                                        c_void_p,                     # Camera Hanlde
+                                        POINTER(VimbaFrame))  # Pointer to frame
 
-    # stop the API from being able to receive frames
-    captureEnd = _vimbaDLL.VmbCaptureEnd
-    captureEnd.restype = c_int32
-    # camera handle
-    captureEnd.argtypes = (c_void_p,)
+        # revoke a frame from the API
+        self.frameRevoke = self._vimbaDLL.VmbFrameRevoke
+        self.frameRevoke.restype = c_int32
+        self.frameRevoke.argtypes = (c_void_p,                                # camera handle
+                                POINTER(VimbaFrame))            # pointer to frame
 
-    # queue frames that may be filled during frame capturing
-    captureFrameQueue = _vimbaDLL.VmbCaptureFrameQueue
-    captureFrameQueue.restype = c_int32
-    captureFrameQueue.argtypes = (c_void_p,
-                                  POINTER(VimbaFrame),
-                                  c_void_p)                            # callback
+        # revoke all frames assigned to a certain camera
+        self.frameRevokeAll = self._vimbaDLL.VmbFrameRevokeAll
+        self.frameRevokeAll.restype = c_int32
+        # camera handle
+        self.frameRevokeAll.argtypes = (c_void_p,)
 
-    # wait for a queued frame to be filled (or dequeued)
-    captureFrameWait = _vimbaDLL.VmbCaptureFrameWait
-    captureFrameWait.restype = c_int32
-    captureFrameWait.argtypes = (c_void_p,                            # camera handle
-                                 POINTER(VimbaFrame),
-                                 c_uint32)                            # timeout
+        # prepare the API for incoming frames
+        self.captureStart = self._vimbaDLL.VmbCaptureStart
+        self.captureStart.restype = c_int32
+        # camera handle
+        self.captureStart.argtypes = (c_void_p,)
 
-    # flush the capture queue
-    captureQueueFlush = _vimbaDLL.VmbCaptureQueueFlush
-    captureQueueFlush.restype = c_int32
-    # camera handle
-    captureQueueFlush.argtypes = (c_void_p,)
+        # stop the API from being able to receive frames
+        self.captureEnd = self._vimbaDLL.VmbCaptureEnd
+        self.captureEnd.restype = c_int32
+        # camera handle
+        self.captureEnd.argtypes = (c_void_p,)
 
-    # list interfaces
-    interfacesList = _vimbaDLL.VmbInterfacesList
-    interfacesList.restype = c_int32
-    interfacesList.argtypes = (POINTER(VimbaInterfaceInfo),        # pointer to interface info structure
-                               # length of list
-                               c_uint32,
-                               # pointer to number of interfaces
-                               POINTER(c_uint32),
-                               c_uint32)
+        # queue frames that may be filled during frame capturing
+        self.captureFrameQueue = self._vimbaDLL.VmbCaptureFrameQueue
+        self.captureFrameQueue.restype = c_int32
+        self.captureFrameQueue.argtypes = (c_void_p,
+                                    POINTER(VimbaFrame),
+                                    c_void_p)                            # callback
 
-    # open interface
-    interfaceOpen = _vimbaDLL.VmbInterfaceOpen
-    interfaceOpen.restype = c_int32
-    interfaceOpen.argtypes = (c_char_p,                                # unique id
-                              c_void_p)                                # handle
+        # wait for a queued frame to be filled (or dequeued)
+        self.captureFrameWait = self._vimbaDLL.VmbCaptureFrameWait
+        self.captureFrameWait.restype = c_int32
+        self.captureFrameWait.argtypes = (c_void_p,                            # camera handle
+                                    POINTER(VimbaFrame),
+                                    c_uint32)                            # timeout
 
-    # close interface
-    interfaceClose = _vimbaDLL.VmbInterfaceClose
-    interfaceClose.restype = c_int32
-    interfaceClose.argtypes = (c_void_p,)                            # handle
+        # flush the capture queue
+        self.captureQueueFlush = self._vimbaDLL.VmbCaptureQueueFlush
+        self.captureQueueFlush.restype = c_int32
+        # camera handle
+        self.captureQueueFlush.argtypes = (c_void_p,)
 
-    # read from register
-    registersRead = _vimbaDLL.VmbRegistersRead
-    registersRead.restype = c_int32
-    registersRead.argtypes = (c_void_p,                                # handle
-                              # read count
-                              c_uint32,
-                              # pointer to address array
-                              POINTER(c_uint64),
-                              # pointer to data array
-                              POINTER(c_uint64),
-                              POINTER(c_uint32))                    # pointer to num complete reads
+        # list interfaces
+        self.interfacesList = self._vimbaDLL.VmbInterfacesList
+        self.interfacesList.restype = c_int32
+        self.interfacesList.argtypes = (POINTER(VimbaInterfaceInfo),        # pointer to interface info structure
+                                # length of list
+                                c_uint32,
+                                # pointer to number of interfaces
+                                POINTER(c_uint32),
+                                c_uint32)
 
-    # write to register
-    registersWrite = _vimbaDLL.VmbRegistersWrite
-    registersWrite.restype = c_int32
-    registersWrite.argtypes = (c_void_p,                            # handle
-                               # write count
-                               c_uint32,
-                               # pointer to address array
-                               POINTER(c_uint64),
-                               # pointer to data array
-                               POINTER(c_uint64),
-                               POINTER(c_uint32))                    # pointer to num complete write
+        # open interface
+        self.interfaceOpen = self._vimbaDLL.VmbInterfaceOpen
+        self.interfaceOpen.restype = c_int32
+        self.interfaceOpen.argtypes = (c_char_p,                                # unique id
+                                c_void_p)                                # handle
+
+        # close interface
+        self.interfaceClose = self._vimbaDLL.VmbInterfaceClose
+        self.interfaceClose.restype = c_int32
+        self.interfaceClose.argtypes = (c_void_p,)                            # handle
+
+        # read from register
+        self.registersRead = self._vimbaDLL.VmbRegistersRead
+        self.registersRead.restype = c_int32
+        self.registersRead.argtypes = (c_void_p,                                # handle
+                                # read count
+                                c_uint32,
+                                # pointer to address array
+                                POINTER(c_uint64),
+                                # pointer to data array
+                                POINTER(c_uint64),
+                                POINTER(c_uint32))                    # pointer to num complete reads
+
+        # write to register
+        self.registersWrite = self._vimbaDLL.VmbRegistersWrite
+        self.registersWrite.restype = c_int32
+        self.registersWrite.argtypes = (c_void_p,                            # handle
+                                # write count
+                                c_uint32,
+                                # pointer to address array
+                                POINTER(c_uint64),
+                                # pointer to data array
+                                POINTER(c_uint64),
+                                POINTER(c_uint32))                    # pointer to num complete write
 
 
 class VimbaC_MemoryBlock(object):

@@ -15,9 +15,15 @@ import pyqtgraph
 def available_cameras():
     """
     Prints the make/model of available cameras, as well as available features.
+
+    Returns
+    -------
+    ids : list
+        Camera ids
     """
     with Vimba() as vimba:
-            
+        
+        vimba.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')  # Enable gigabit-ethernet discovery
         cameraIds = vimba.getCameraIds()
 
         if not cameraIds:
@@ -31,6 +37,8 @@ def available_cameras():
             for name in camera.getFeatureNames():
                 print('    Feature: ', name)
             camera.closeCamera()
+        
+        return list(cameraIds)
 
 class Camera(object):
     """ Template object for cameras that can interact with shampoo.gui """
@@ -41,20 +49,22 @@ class Camera(object):
         raise NotImplementedError
         
     def snapshot(self):
+        """
+        Instantaneous snapshot.
+
+        Returns
+        -------
+        img : ndarray
+        """
         raise NotImplementedError
 
-    def start_acquisition(self, image_queue = None, callback = None):
+    def start_acquisition(self, image_queue = None):
         """
         Parameters
         ----------
         image_queue : Queue instance or None, optional
             Thread-safe queue in which frame data is deposited as NumPy Arrays. 
             If None (default), a callback is used on every frame.
-        
-        Raises
-        ------
-        ValueError
-            If image_queue and callback are both None.
         """
         raise NotImplementedError
     
@@ -78,7 +88,14 @@ class AlliedVisionCamera(Camera):
     In order to discover available cameras, consider using available_cameras()
     """
 
-    def __init__(self):
+    def __init__(self, ID = None):
+        """
+        Parameters
+        ----------
+        ID : str
+            Camera identifier. Ignored until implemented.
+        """
+        # TODO: select from list of cameras
         super(AlliedVisionCamera, self).__init__()
         self._api = Vimba()
         self._camera = None
@@ -96,7 +113,6 @@ class AlliedVisionCamera(Camera):
         self._api.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')
         
         # Get camera
-        # TODO: select from list of cameras
         camera_ids = self._api.getCameraIds()
         self._camera = self._api.getCamera(camera_ids[0])
         self._camera.openCamera()
@@ -114,7 +130,7 @@ class AlliedVisionCamera(Camera):
        
     def snapshot(self):
         """
-        Returns an image from the camera as soon as one is available.
+        Instantaneous snapshot.
 
         Returns
         -------
@@ -142,8 +158,7 @@ class AlliedVisionCamera(Camera):
         callback : callable, optional
         """
         while self._keep_acquiring:
-            img = self.snapshot()
-            image_queue.put(img)
+            image_queue.put(self.snapshot())
 
         # Prepare for next time self.start_acquisition() is called
         self._keep_acquiring = True

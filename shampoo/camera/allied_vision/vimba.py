@@ -36,6 +36,9 @@ class Vimba(object):
         # can't be called before startup() so populate later
         self._interfaceInfos = None
 
+        # DLL as instance
+        self._dll = VimbaDLL()
+
         # dict of {camera ID : VimbaCamera object} as we don't want to forget
         # them
         self._cameras = {}
@@ -83,7 +86,7 @@ class Vimba(object):
 
             # call once just to get the number of interfaces
             # Vimba DLL will return an error code
-            errorCode = VimbaDLL.interfacesList(byref(dummyInterfaceInfo),
+            errorCode = self._dll.interfacesList(byref(dummyInterfaceInfo),
                                                 0,
                                                 byref(numFound),
                                                 sizeof(dummyInterfaceInfo))
@@ -97,7 +100,7 @@ class Vimba(object):
 
             # call again to get the features
             # Vimba DLL will return an error code
-            errorCode = VimbaDLL.interfacesList(interfaceInfoArray,
+            errorCode = self._dll.interfacesList(interfaceInfoArray,
                                                 numInterfaces,
                                                 byref(numFound),
                                                 sizeof(dummyInterfaceInfo))
@@ -119,7 +122,7 @@ class Vimba(object):
 
         # call once just to get the number of cameras
         # Vimba DLL will return an error code
-        errorCode = VimbaDLL.camerasList(byref(dummyCameraInfo),
+        errorCode = self._dll.camerasList(byref(dummyCameraInfo),
                                          0,
                                          byref(numFound),
                                          sizeof(dummyCameraInfo))
@@ -133,7 +136,7 @@ class Vimba(object):
 
         # call again to get the features
         # Vimba DLL will return an error code
-        errorCode = VimbaDLL.camerasList(cameraInfoArray,
+        errorCode = self._dll.camerasList(cameraInfoArray,
                                          numCameras,
                                          byref(numFound),
                                          sizeof(dummyCameraInfo))
@@ -241,7 +244,7 @@ class Vimba(object):
         versionInfo = VimbaVersion()
 
         # Vimba DLL will return an error code
-        errorCode = VimbaDLL.versionQuery(versionInfo,
+        errorCode = self._dll.versionQuery(versionInfo,
                                           sizeof(versionInfo))
         if errorCode != 0:
             raise VimbaException(errorCode)
@@ -256,7 +259,7 @@ class Vimba(object):
         Initialize the VimbaC API.
         """
         # Vimba DLL will return an error code
-        errorCode = VimbaDLL.startup()
+        errorCode = self._dll.startup()
         if errorCode != 0:
             raise VimbaException(errorCode)
 
@@ -264,4 +267,4 @@ class Vimba(object):
         """
         Perform a shutdown on the API.
         """
-        VimbaDLL.shutdown()
+        self._dll.shutdown()

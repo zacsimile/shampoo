@@ -43,15 +43,26 @@ class ShampooController(QtCore.QObject):
     Signals
     -------
     reconstructed_hologram_signal
-        Emits a reconstructed hologram whenever one is available
+        Emits a reconstructed hologram whenever one is available.
+    
+    raw_data_signal
+        Emits holographic data whenever one is loaded into memory.
     
     Slots
     -------
     send_data
         Send raw holographic data, to be reconstructed.
     
+    send_snapshot_data
+        Send raw holographic data to be reconstructed, from a camera snapshot.
+    
     update_propagation_distance
         Change the propagation distance(s) used in the holographic reconstruction process.
+    
+    Methods
+    -------
+    choose_camera
+        Choose camera from a list of ID. Not implemented.
     """
     raw_data_signal = QtCore.pyqtSignal(object, name = 'raw_data_signal')
     reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
@@ -64,17 +75,24 @@ class ShampooController(QtCore.QObject):
         """
         super(ShampooController, self).__init__(**kwargs)
         self.reconstructed_queue = ProcessSafeQueue()
-        self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
-        try:
-            self.camera = AlliedVisionCamera()  #TODO: choose among cameras
-        except:
-            self.camera = None
+        self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE] 
+        self.camera = None
 
         # Wire up reactor
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
         self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = self.reconstructed_hologram_signal.emit)
-        self.reconstruction_reactor.start()
-        self.display_reactor.start()
+        self.reconstruction_reactor.start(), self.display_reactor.start()
+
+        # Connect camera
+        self.choose_camera()
+    
+    @QtCore.pyqtSlot()
+    def send_snapshot_data(self):
+        """
+        Send holographic data from the camera to the reconstruction reactor.
+        """
+        data = self.camera.snapshot()
+        self.send_data(data)
     
     @QtCore.pyqtSlot(object)
     def send_data(self, data):
@@ -95,6 +113,13 @@ class ShampooController(QtCore.QObject):
     def update_propagation_distance(self, item):
         """ Thread-safe PyQt slot API to updating the propagation distance. """
         self.propagation_distance = item
+    
+    def choose_camera(self, ID = None):
+        """ Connect camera by ID. """
+        try:
+            self.camera = AlliedVisionCamera(ID)
+        except:
+            self.camera = None
 
 class App(ShampooWidget, QtGui.QMainWindow):
     """
@@ -127,15 +152,6 @@ class App(ShampooWidget, QtGui.QMainWindow):
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')
         hologram = Hologram.from_tif(os.path.abspath(path))
         self.controller.send_data(data = hologram)
-    
-    @QtCore.pyqtSlot()
-    def load_camera_snapshot(self):
-        """ Take a camera snapshot and load it for reconstruction. """
-        try:    # Camera might not be connected
-            img = self.camera.snapshot()
-            self.controller.send_data(img)
-        except:
-            pass
 
     def _init_ui(self):
         """
@@ -176,7 +192,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.file_menu.addAction(self.load_data_action)
 
         self.camera_snapshot_action = QtGui.QAction('&Take camera snapshot', self)
-        self.camera_snapshot_action.triggered.connect(self.load_camera_snapshot)
+        self.camera_snapshot_action.triggered.connect(self.controller.send_snapshot_data)
         self.camera_menu.addAction(self.camera_snapshot_action)
     
     def _connect_signals(self):
