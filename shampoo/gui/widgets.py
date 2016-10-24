@@ -21,7 +21,7 @@ class ShampooWidget(object):
 
     def __init__(self, *args, **kwargs):
         super(ShampooWidget, self).__init__()
-
+        
         self._init_ui()
         self._init_actions()
         self._connect_signals()

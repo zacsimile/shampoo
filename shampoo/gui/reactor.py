@@ -142,6 +142,9 @@ class Reactor(object):
                 reacted = self.function(item)
                 self.callback(reacted)
                 self.output_queue.put(reacted)
+    
+    def __del__(self):
+        self.stop()
 
 class ProcessReactor(Reactor):
     """

@@ -6,6 +6,7 @@ Usage
 >>> from shampoo.gui import run
 >>> run()
 """
+from ..camera import AlliedVisionCamera
 import numpy as np
 import os
 from pyqtgraph import QtGui, QtCore
@@ -52,6 +53,7 @@ class ShampooController(QtCore.QObject):
     update_propagation_distance
         Change the propagation distance(s) used in the holographic reconstruction process.
     """
+    raw_data_signal = QtCore.pyqtSignal(object, name = 'raw_data_signal')
     reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
 
     def __init__(self, **kwargs):
@@ -63,6 +65,10 @@ class ShampooController(QtCore.QObject):
         super(ShampooController, self).__init__(**kwargs)
         self.reconstructed_queue = ProcessSafeQueue()
         self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
+        try:
+            self.camera = AlliedVisionCamera()  #TODO: choose among cameras
+        except:
+            self.camera = None
 
         # Wire up reactor
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
@@ -82,6 +88,7 @@ class ShampooController(QtCore.QObject):
         """
         if not isinstance(data, Hologram):
             data = Hologram(data)
+        self.raw_data_signal.emit(data)
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
     
     @QtCore.pyqtSlot(object)
@@ -119,8 +126,16 @@ class App(ShampooWidget, QtGui.QMainWindow):
         """ Load a hologram into memory and displays it. """
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')
         hologram = Hologram.from_tif(os.path.abspath(path))
-        self.data_viewer.display(hologram)
         self.controller.send_data(data = hologram)
+    
+    @QtCore.pyqtSlot()
+    def load_camera_snapshot(self):
+        """ Take a camera snapshot and load it for reconstruction. """
+        try:    # Camera might not be connected
+            img = self.camera.snapshot()
+            self.controller.send_data(img)
+        except:
+            pass
 
     def _init_ui(self):
         """
@@ -136,6 +151,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
 
         # Assemble menu from previously-defined actions
         self.file_menu = self.menubar.addMenu('&File')
+        self.camera_menu = self.menubar.addMenu('&Camera')
 
         # Assemble window
         self.splitter.addWidget(self.data_viewer)
@@ -158,10 +174,15 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.load_data_action = QtGui.QAction('&Load raw data', self)
         self.load_data_action.triggered.connect(self.load_data)
         self.file_menu.addAction(self.load_data_action)
+
+        self.camera_snapshot_action = QtGui.QAction('&Take camera snapshot', self)
+        self.camera_snapshot_action.triggered.connect(self.load_camera_snapshot)
+        self.camera_menu.addAction(self.camera_snapshot_action)
     
     def _connect_signals(self):
         self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
+        self.controller.raw_data_signal.connect(self.data_viewer.display)
     
     def _center_window(self):
         qr = self.frameGeometry()
