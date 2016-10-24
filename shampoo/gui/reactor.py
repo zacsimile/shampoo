@@ -10,7 +10,6 @@ ProcessReactor
 from multiprocessing import Process, Pipe
 from multiprocessing import Queue as ProcessSafeQueue
 import numpy as np
-from ..reconstruction import Hologram, ReconstructedWave
 from threading import Thread
 from time import sleep
 

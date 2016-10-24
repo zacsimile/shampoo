@@ -8,7 +8,6 @@ available_cameras
     Prints the available, connected cameras as well as a list of their features.
 """
 from .allied_vision import Vimba
-from ..gui.reactor import Reactor, ThreadSafeQueue
 from threading import Thread
 import pyqtgraph
 
