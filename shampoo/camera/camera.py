@@ -8,8 +8,9 @@ available_cameras
     Prints the available, connected cameras as well as a list of their features.
 """
 from .allied_vision import Vimba
-from threading import Thread
+import numpy as np
 import pyqtgraph
+from threading import Thread
 
 def available_cameras():
     """
@@ -140,7 +141,12 @@ class AlliedVisionCamera(Camera):
         self._camera.runFeatureCommand('AcquisitionStop')
         self._frame.waitFrameCapture(1000)
         img = self._frame.getImage()
-        return img
+
+        # Temporary fix
+        # Resize images to square resolution
+        # Hologram.reconstruct raises errors otherwise
+        min_side = min(img.shape)
+        return np.resize(img, new_shape = (min_side, min_side))
         
     def start_acquisition(self, image_queue):
 
