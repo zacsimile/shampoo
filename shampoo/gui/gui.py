@@ -6,11 +6,11 @@ Usage
 >>> from shampoo.gui import run
 >>> run()
 """
-from ..camera import AlliedVisionCamera
+from .camera import AlliedVisionCamera
 import numpy as np
 import os
-from pyqtgraph import QtGui, QtCore
-import pyqtgraph as pg
+from .pyqtgraph import QtGui, QtCore
+from . import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
