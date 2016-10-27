@@ -425,15 +425,14 @@ class VimbaC_MemoryBlock(object):
     neatly with C memory allocations.
     """
 
-    # C runtime DLL
-    _crtDLL = cdll.LoadLibrary('msvcrt')
-
     @property
     def block(self):
         return self._block
 
     def __init__(self, blockSize):
 
+        self._crtDLL = cdll.LoadLibrary('msvcrt') # C runtime DLL
+        
         # assign memory block
         malloc = self._crtDLL.malloc
         malloc.argtypes = (c_size_t,)
