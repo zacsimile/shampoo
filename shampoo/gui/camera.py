@@ -139,13 +139,7 @@ class AlliedVisionCamera(Camera):
         self._camera.runFeatureCommand('AcquisitionStart')
         self._camera.runFeatureCommand('AcquisitionStop')
         self._frame.waitFrameCapture(1000)
-        img = self._frame.getImage()
-
-        # Temporary fix
-        # Resize images to square resolution
-        # Hologram.reconstruct raises errors otherwise
-        min_side = min(img.shape)
-        return np.resize(img, new_shape = (min_side, min_side))
+        return self._frame.getImage()
         
     def start_acquisition(self, image_queue):
 
