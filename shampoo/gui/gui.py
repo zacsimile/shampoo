@@ -10,7 +10,7 @@ from .camera import AlliedVisionCamera
 import numpy as np
 import os
 from pyqtgraph import QtGui, QtCore
-from . import pyqtgraph as pg
+import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
@@ -88,6 +88,11 @@ class ShampooController(QtCore.QObject):
 
         # Connect camera
         self.choose_camera()
+    
+    def __del__(self):
+        self.reconstruction_reactor.stop()
+        self.display_reactor.stop()
+        super(ShampooController, self).__del__()
     
     @QtCore.pyqtSlot()
     def send_snapshot_data(self):
