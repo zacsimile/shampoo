@@ -6,7 +6,6 @@ from ctypes import *
 
 # class may extend a generic Vimba entity class one day...
 
-
 class VimbaFeature(object):
 
     """
@@ -42,6 +41,8 @@ class VimbaFeature(object):
 
         # set own info
         self._info = self._getInfo()
+
+        self._api = self._api
 
         # type functions dict for looking up correct get/set function to use
         self._getSetTypeFuncs = {0: (self._notYetImplemented, self._notYetImplemented),		# todo
@@ -85,7 +86,7 @@ class VimbaFeature(object):
         featureInfo = VimbaFeatureInfo()
 
         # Vimba DLL will return an error code
-        errorCode = VimbaDLL.featureInfoQuery(self._handle,
+        errorCode = self._api.featureInfoQuery(self._handle,
                                               self._name,
                                               byref(featureInfo),
                                               sizeof(featureInfo))
@@ -110,7 +111,7 @@ class VimbaFeature(object):
         # create args
         valueToGet = c_int64()
 
-        errorCode = VimbaDLL.featureIntGet(self._handle,
+        errorCode = self._api.featureIntGet(self._handle,
                                            self._name,
                                            byref(valueToGet))
         if errorCode != 0:
@@ -125,7 +126,7 @@ class VimbaFeature(object):
         :param valueToSet: the int value to set for the feature.
         """
 
-        errorCode = VimbaDLL.featureIntSet(self._handle,
+        errorCode = self._api.featureIntSet(self._handle,
                                            self._name,
                                            valueToSet)
         if errorCode != 0:
@@ -141,7 +142,7 @@ class VimbaFeature(object):
         # create args
         valueToGet = c_double()
 
-        errorCode = VimbaDLL.featureFloatGet(self._handle,
+        errorCode = self._api.featureFloatGet(self._handle,
                                              self._name,
                                              byref(valueToGet))
         if errorCode != 0:
@@ -156,7 +157,7 @@ class VimbaFeature(object):
         :param valueToSet: the float value to set for the feature.
         """
 
-        errorCode = VimbaDLL.featureFloatSet(self._handle,
+        errorCode = self._api.featureFloatSet(self._handle,
                                              self._name,
                                              valueToSet)
         if errorCode != 0:
@@ -172,7 +173,7 @@ class VimbaFeature(object):
         # create args
         valueToGet = c_char_p()
 
-        errorCode = VimbaDLL.featureEnumGet(self._handle,
+        errorCode = self._api.featureEnumGet(self._handle,
                                             self._name,
                                             byref(valueToGet))
         if errorCode != 0:
@@ -187,7 +188,7 @@ class VimbaFeature(object):
         :param valueToSet: the enum value to set for the feature.
         """
 
-        errorCode = VimbaDLL.featureEnumSet(self._handle,
+        errorCode = self._api.featureEnumSet(self._handle,
                                             self._name,
                                             valueToSet)
         if errorCode != 0:
@@ -205,7 +206,7 @@ class VimbaFeature(object):
         valueToGet = create_string_buffer('\000' * bufferSize)
         sizeFilled = c_uint32()
 
-        errorCode = VimbaDLL.featureStringGet(self._handle,
+        errorCode = self._api.featureStringGet(self._handle,
                                               self._name,
                                               valueToGet,
                                               bufferSize,
@@ -222,7 +223,7 @@ class VimbaFeature(object):
         :param valueToSet: the string value to set for the feature.
         """
 
-        errorCode = VimbaDLL.featureStringSet(self._handle,
+        errorCode = self._api.featureStringSet(self._handle,
                                               self._name,
                                               valueToSet)
         if errorCode != 0:
@@ -238,7 +239,7 @@ class VimbaFeature(object):
         # create args
         valueToGet = c_bool()
 
-        errorCode = VimbaDLL.featureBoolGet(self._handle,
+        errorCode = self._api.featureBoolGet(self._handle,
                                             self._name,
                                             byref(valueToGet))
         if errorCode != 0:
@@ -253,7 +254,7 @@ class VimbaFeature(object):
         :param valueToSet: the bool value to set for the feature.
         """
 
-        errorCode = VimbaDLL.featureBoolSet(self._handle,
+        errorCode = self._api.featureBoolSet(self._handle,
                                             self._name,
                                             valueToSet)
         if errorCode != 0:
@@ -276,7 +277,7 @@ class VimbaFeature(object):
         minToGet = c_int64()
         maxToGet = c_int64()
 
-        errorCode = VimbaDLL.featureIntRangeQuery(self._handle,
+        errorCode = self._api.featureIntRangeQuery(self._handle,
                                                   self._name,
                                                   byref(minToGet),
                                                   byref(maxToGet))
@@ -296,7 +297,7 @@ class VimbaFeature(object):
         minToGet = c_double()
         maxToGet = c_double()
 
-        errorCode = VimbaDLL.featureFloatRangeQuery(self._handle,
+        errorCode = self._api.featureFloatRangeQuery(self._handle,
                                                     self._name,
                                                     byref(minToGet),
                                                     byref(maxToGet))

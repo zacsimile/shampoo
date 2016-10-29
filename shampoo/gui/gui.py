@@ -9,7 +9,7 @@ Usage
 from .camera import AlliedVisionCamera
 import numpy as np
 import os
-from .pyqtgraph import QtGui, QtCore
+from pyqtgraph import QtGui, QtCore
 from . import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
@@ -75,8 +75,11 @@ class ShampooController(QtCore.QObject):
         """
         super(ShampooController, self).__init__(**kwargs)
         self.reconstructed_queue = ProcessSafeQueue()
-        self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE] 
-        self.camera = None
+        self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
+        try:
+            self.camera = AlliedVisionCamera()
+        except:
+            self.camera = None
 
         # Wire up reactor
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)

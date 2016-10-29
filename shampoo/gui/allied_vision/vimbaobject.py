@@ -5,7 +5,6 @@ from .vimbafeature import VimbaFeature
 from .vimbadll import VimbaDLL
 from ctypes import *
 
-
 class VimbaObject(object):
 
     """
@@ -21,6 +20,7 @@ class VimbaObject(object):
         # create own handle
         self._handle = c_void_p()
 
+        self._api = VimbaDLL()
         # list of VimbaFeatureInfo objects
         # can't set yet as the object (e.g. a camera) won't be
         # opened yet, therefore no event for object opening
@@ -75,7 +75,7 @@ class VimbaObject(object):
 
             # call once to get number of available features
             # Vimba DLL will return an error code
-            errorCode = VimbaDLL.featuresList(self._handle,
+            errorCode = self._api.featuresList(self._handle,
                                               None,
                                               0,
                                               byref(numFound),
@@ -91,7 +91,7 @@ class VimbaObject(object):
 
             # call again to get the features
             # Vimba DLL will return an error code
-            errorCode = VimbaDLL.featuresList(self._handle,
+            errorCode = self._api.featuresList(self._handle,
                                               featureInfoArray,
                                               numFeatures,
                                               byref(numFound),
@@ -152,7 +152,7 @@ class VimbaObject(object):
         # Due to string handling in Python 2 vs 3, feature names must be of byte type,
         # not str: e.g. b'GeVDiscoveryOnce'
         featureName = bytes(featureName, 'utf-8')
-        errorCode = VimbaDLL.featureCommandRun(self._handle,
+        errorCode = self._api.featureCommandRun(self._handle,
                                                featureName)
         if errorCode != 0:
             raise VimbaException(errorCode)
@@ -179,7 +179,7 @@ class VimbaObject(object):
         regData = c_uint64()
         numCompleteReads = c_uint32()
 
-        errorCode = VimbaDLL.registersRead(self.handle,
+        errorCode = self._api.registersRead(self.handle,
                                            readCount,
                                            byref(regAddress),
                                            byref(regData),
@@ -216,7 +216,7 @@ class VimbaObject(object):
 
         numCompleteWrites = c_uint32()
 
-        errorCode = VimbaDLL.registersWrite(self.handle,
+        errorCode = self._api.registersWrite(self.handle,
                                             writeCount,
                                             byref(regAddress),
                                             byref(regData),

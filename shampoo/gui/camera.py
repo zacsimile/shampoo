@@ -139,7 +139,8 @@ class AlliedVisionCamera(Camera):
         self._camera.runFeatureCommand('AcquisitionStart')
         self._camera.runFeatureCommand('AcquisitionStop')
         self._frame.waitFrameCapture(1000)
-        return self._frame.getImage()
+        frame_data = self._frame.getFrameBufferData()
+        return ndarray(buffer = frame_data, dtype = n.uint8, shape = self.resolution)
         
     def start_acquisition(self, image_queue):
 

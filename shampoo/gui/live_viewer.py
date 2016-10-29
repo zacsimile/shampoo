@@ -2,8 +2,8 @@
 This module implements a PyQtGraph widget to display a live
 feed from a camera.
 """
-import .pyqtgraph as pg
-from .pyqtgraph import QtGui, QtCore
+import pyqtgraph as pg
+from pyqtgraph import QtGui, QtCore
 from .camera import AlliedVisionCamera
 from .reactor import Reactor, ThreadSafeQueue
 import sys

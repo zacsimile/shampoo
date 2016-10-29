@@ -128,7 +128,15 @@ class VimbaDLL(object):
     # -- VmbRegistersRead()
     # -- VmbRegistersWrite()
 
-    # Vimba C API DLL
+    _instance = None
+
+    def __new__(cls):
+        """ Ensure that the DLL is not loaded everytime. """
+        if VimbaDLL._instance is None:
+            VimbaDLL._instance = super(VimbaDLL, cls).__new__(cls)
+        
+        return VimbaDLL._instance
+        
     def __init__(self):
 
         self._vimbaDLL = windll.LoadLibrary(vimbaC_path())

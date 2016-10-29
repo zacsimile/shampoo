@@ -7,7 +7,6 @@ from .vimbadll import VimbaDLL, VimbaC_MemoryBlock
 from ctypes import *
 import warnings
 
-
 """
 Map pixel formats to bytes per pixel.
     The packed formats marked with "?" have not been tested.
@@ -40,6 +39,7 @@ class VimbaFrame(object):
     def __init__(self, camera):
         self._camera = camera
         self._handle = camera.handle
+        self._api = VimbaDLL()
 
         # get frame sizes
         self.payloadSize = self._camera.PayloadSize
@@ -70,7 +70,7 @@ class VimbaFrame(object):
         # set buffer size to expected payload size
         self._frame.bufferSize = sizeOfFrame
 
-        errorCode = VimbaDLL.frameAnnounce(self._handle,
+        errorCode = self._api.frameAnnounce(self._handle,
                                            byref(self._frame),
                                            sizeof(self._frame))
 
@@ -81,7 +81,7 @@ class VimbaFrame(object):
         """
         Revoke a frame from the API.
         """
-        errorCode = VimbaDLL.frameRevoke(self._handle,
+        errorCode = self._api.frameRevoke(self._handle,
                                          byref(self._frame))
 
         if errorCode != 0:
@@ -112,9 +112,9 @@ class VimbaFrame(object):
             self._frameCallbackWrapper_C = None
         else:
             # keep a reference to prevent gc issues
-            self._frameCallbackWrapper_C = VimbaDLL.frameDoneCallback(frameCallbackWrapper)
+            self._frameCallbackWrapper_C = self._api.frameDoneCallback(frameCallbackWrapper)
 
-        errorCode = VimbaDLL.captureFrameQueue(self._handle,
+        errorCode = self._api.captureFrameQueue(self._handle,
                                                byref(self._frame),
                                                self._frameCallbackWrapper_C)
         if errorCode != 0:
@@ -130,7 +130,7 @@ class VimbaFrame(object):
 
         Call after an acquisition command
         """
-        errorCode = VimbaDLL.captureFrameWait(self._handle,
+        errorCode = self._api.captureFrameWait(self._handle,
                                               byref(self._frame),
                                               timeout)
 

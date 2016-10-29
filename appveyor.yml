@@ -14,7 +14,7 @@ environment:
       # so Cython is required for testing. If your package does not include
       # Cython code, you can set CONDA_DEPENDENCIES=''
       CONDA_DEPENDENCIES: "numpy Cython sphinx scipy matplotlib scikit-image astropy h5py scikit-learn pyqt=4.11.4"
-      PIP_DEPENDENCIES: "mst_clustering"
+      PIP_DEPENDENCIES: "mst_clustering pyqtgraph"
 
   matrix:
 

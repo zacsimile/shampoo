@@ -5,7 +5,6 @@ from .vimbaexception import VimbaException
 from .vimbaframe import VimbaFrame
 from .vimbadll import VimbaDLL
 from ctypes import *
-
 # camera features are automatically readable as object attributes.
 
 
@@ -32,6 +31,8 @@ class VimbaCamera(VimbaObject):
         # set own info
         self._info = self._getInfo()
 
+        self._api = VimbaDLL()
+
     def getInfo(self):
         """
         Get info of the camera. Does not require
@@ -52,7 +53,7 @@ class VimbaCamera(VimbaObject):
         cameraInfo = VimbaCameraInfo()
 
         # Vimba DLL will return an error code
-        errorCode = VimbaDLL.cameraInfoQuery(self._cameraIdString,
+        errorCode = self._api.cameraInfoQuery(self._cameraIdString,
                                              byref(cameraInfo),
                                              sizeof(cameraInfo))
         if errorCode != 0:
@@ -67,7 +68,7 @@ class VimbaCamera(VimbaObject):
         # args for Vimba call
         cameraAccessMode = 1  # full access (see VmbAccessModeType)
 
-        errorCode = VimbaDLL.cameraOpen(self._cameraIdString,
+        errorCode = self._api.cameraOpen(self._cameraIdString,
                                         cameraAccessMode,
                                         byref(self._handle))
         if errorCode != 0:
@@ -77,7 +78,7 @@ class VimbaCamera(VimbaObject):
         """
         Close the camera.
         """
-        errorCode = VimbaDLL.cameraClose(self._handle)
+        errorCode = self._api.cameraClose(self._handle)
         if errorCode != 0:
             raise VimbaException(errorCode)
 
@@ -85,7 +86,7 @@ class VimbaCamera(VimbaObject):
         """
         Revoke all frames assigned to the camera.
         """
-        errorCode = VimbaDLL.frameRevokeAll(self._handle)
+        errorCode = self._api.frameRevokeAll(self._handle)
         if errorCode != 0:
             raise VimbaException(errorCode)
 
@@ -93,7 +94,7 @@ class VimbaCamera(VimbaObject):
         """
         Prepare the API for incoming frames.
         """
-        errorCode = VimbaDLL.captureStart(self._handle)
+        errorCode = self._api.captureStart(self._handle)
         if errorCode != 0:
             raise VimbaException(errorCode)
 
@@ -101,7 +102,7 @@ class VimbaCamera(VimbaObject):
         """
         Stop the API from being able to receive frames.
         """
-        errorCode = VimbaDLL.captureEnd(self._handle)
+        errorCode = self._api.captureEnd(self._handle)
         if errorCode != 0:
             raise VimbaException(errorCode)
 
@@ -109,7 +110,7 @@ class VimbaCamera(VimbaObject):
         """
         Flush the capture queue.
         """
-        errorCode = VimbaDLL.captureQueueFlush(self._handle)
+        errorCode = self._api.captureQueueFlush(self._handle)
         if errorCode != 0:
             raise VimbaException(errorCode)
 

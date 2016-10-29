@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 from .vimbaobject import VimbaObject
 from .vimbaexception import VimbaException
-from .vimbadll import VimbaDLL
 from ctypes import *
-
 # interface features are automatically readable as object attributes.
 
 
@@ -22,6 +20,7 @@ class VimbaInterface(VimbaObject):
     def __init__(self, interfaceIdString):
 
         # call super constructor
+        # self._api = VimbaDLL() happens in VimbaObject
         super(VimbaInterface, self).__init__()
 
         # set ID
@@ -31,7 +30,7 @@ class VimbaInterface(VimbaObject):
         """
         Open the interface.
         """
-        errorCode = VimbaDLL.interfaceOpen(self._interfaceIdString,
+        errorCode = self._api.interfaceOpen(self._interfaceIdString,
                                            byref(self._handle))
         if errorCode != 0:
             raise VimbaException(errorCode)
@@ -40,6 +39,6 @@ class VimbaInterface(VimbaObject):
         """
         Close the interface.
         """
-        errorCode = VimbaDLL.interfaceClose(self._handle)
+        errorCode = self._api.interfaceClose(self._handle)
         if errorCode != 0:
             raise VimbaException(errorCode)
