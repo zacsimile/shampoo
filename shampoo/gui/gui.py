@@ -6,7 +6,7 @@ Usage
 >>> from shampoo.gui import run
 >>> run()
 """
-from .camera import AlliedVisionCamera
+from .camera import available_cameras, AlliedVisionCamera
 import numpy as np
 import os
 from pyqtgraph import QtGui, QtCore
@@ -76,25 +76,18 @@ class ShampooController(QtCore.QObject):
         super(ShampooController, self).__init__(**kwargs)
         self.reconstructed_queue = ProcessSafeQueue()
         self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
-        try:
-            self.camera = AlliedVisionCamera()
-        except:
-            self.camera = None
+        self.camera = None
 
-        # Wire up reactor
+        # Wire up reactors
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
         self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = self.reconstructed_hologram_signal.emit)
         self.reconstruction_reactor.start(), self.display_reactor.start()
-
-        # Connect camera
-        self.choose_camera()
     
     def __del__(self):
         self.reconstruction_reactor.stop()
         self.display_reactor.stop()
-        super(ShampooController, self).__del__()
     
-    @QtCore.pyqtSlot()
+    @QtCore.pyqtSlot(object)
     def send_snapshot_data(self):
         """
         Send holographic data from the camera to the reconstruction reactor.
@@ -122,12 +115,11 @@ class ShampooController(QtCore.QObject):
         """ Thread-safe PyQt slot API to updating the propagation distance. """
         self.propagation_distance = item
     
-    def choose_camera(self, ID = None):
+    @QtCore.pyqtSlot(object)
+    def connect_camera(self, ID):
         """ Connect camera by ID. """
-        try:
-            self.camera = AlliedVisionCamera(ID)
-        except:
-            self.camera = None
+        # TODO: generalize to other manufacturers?
+        self.camera = AlliedVisionCamera(ID)
 
 class App(ShampooWidget, QtGui.QMainWindow):
     """
@@ -145,6 +137,8 @@ class App(ShampooWidget, QtGui.QMainWindow):
         Select the propagation distance(s) with which to reconstruct
         holograms.
     """
+    connect_camera_signal = QtCore.pyqtSignal(object, name = 'connect_camera_signal')
+    
     def __init__(self):
 
         self.data_viewer = None
@@ -153,13 +147,27 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.controller = ShampooController()
 
         super(App, self).__init__()
-    
+
     @QtCore.pyqtSlot()
     def load_data(self):
         """ Load a hologram into memory and displays it. """
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')
         hologram = Hologram.from_tif(os.path.abspath(path))
         self.controller.send_data(data = hologram)
+    
+    @QtCore.pyqtSlot()
+    def connect_camera(self):
+        """ Bring up a modal dialog to choose amongst available cameras. """
+        cameras = available_cameras()
+        if not cameras:
+            error_window = QtGui.QErrorMessage(self)
+            return error_window.showMessage('No cameras available. ')
+        
+        camera_ID, ok = QtGui.QInputDialog.getItem(self, 'Select camera', 'List of cameras', 
+                                                   cameras, 0, False)
+        
+        if ok and camera_ID:
+            self.connect_camera_signal.emit(camera_ID)
 
     def _init_ui(self):
         """
@@ -199,6 +207,10 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.load_data_action.triggered.connect(self.load_data)
         self.file_menu.addAction(self.load_data_action)
 
+        self.connect_camera_action = QtGui.QAction('&Connect a camera', self)
+        self.connect_camera_action.triggered.connect(self.connect_camera)
+        self.camera_menu.addAction(self.connect_camera_action)
+
         self.camera_snapshot_action = QtGui.QAction('&Take camera snapshot', self)
         self.camera_snapshot_action.triggered.connect(self.controller.send_snapshot_data)
         self.camera_menu.addAction(self.camera_snapshot_action)
@@ -207,6 +219,9 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
         self.controller.raw_data_signal.connect(self.data_viewer.display)
+
+        # Signify to the controller to connect to a new camera
+        self.connect_camera_signal.connect(self.controller.connect_camera)
     
     def _center_window(self):
         qr = self.frameGeometry()

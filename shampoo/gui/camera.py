@@ -17,27 +17,15 @@ def available_cameras():
 
     Returns
     -------
-    ids : list
-        Camera ids
+    ids : list of strings
+        Camera IDs
     """
     with Vimba() as vimba:
         
         vimba.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')  # Enable gigabit-ethernet discovery
         cameraIds = vimba.getCameraIds()
-
-        if not cameraIds:
-            print('No cameras are available.')
-            return
         
-        for cameraId in cameraIds:
-            print('Allied Vision Camera ID: ', cameraId)
-            camera = vimba.getCamera(cameraId)
-            camera.openCamera()
-            for name in camera.getFeatureNames():
-                print('    Feature: ', name)
-            camera.closeCamera()
-        
-        return list(cameraIds)
+        return list(map(str, cameraIds)) # In py3+, map() returns an iterable map object
 
 class Camera(object):
     """ Template object for cameras that can interact with shampoo.gui """
@@ -78,7 +66,6 @@ class Camera(object):
     
     def __del__(self):
         self.disconnect()
-
 
 class AlliedVisionCamera(Camera):
     """
