@@ -20,6 +20,7 @@ def available_cameras():
     ids : list of strings
         Camera IDs
     """
+    # Allied Vision cameras
     with Vimba() as vimba:
         
         vimba.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')  # Enable gigabit-ethernet discovery
@@ -79,28 +80,27 @@ class AlliedVisionCamera(Camera):
         Parameters
         ----------
         ID : str
-            Camera identifier. Ignored until implemented.
+            Camera identifier.
         """
-        # TODO: select from list of cameras
         super(AlliedVisionCamera, self).__init__()
+
         self._api = Vimba()
         self._camera = None
         self._frame = None
         self._keep_acquiring = True
 
-        self.connect() # Instantiates self._camera, self._frame
+        # Startup
+        self._api.startup()
+        self._api.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')
+        self._camera = self._api.getCamera(ID)
+        self.connect() # Open camera, instantiate self._frame
     
     @property
     def resolution(self):
         return (self._frame.height, self._frame.width)
     
     def connect(self):
-        self._api.startup()
-        self._api.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')
-        
-        # Get camera
-        camera_ids = self._api.getCameraIds()
-        self._camera = self._api.getCamera(camera_ids[0])
+
         self._camera.openCamera()
         
         # Set some feature values
