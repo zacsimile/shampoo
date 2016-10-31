@@ -55,6 +55,75 @@ class Viewer(ShampooWidget):
 #########################################################################################
 ###             GUI COMPONENTS
 
+class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
+    """
+    Modal dialog used to set camera features within SHAMPOO
+
+    Signals
+    -------
+    accepted
+
+    finished
+
+    rejected
+    """
+    def __init__(self, camera, parent = None):
+        """
+        Parameters
+        ----------
+        camera : shampoo.gui.Camera instance
+
+        parent : QWidget or None, optional
+        """
+        self.camera = camera
+        super(CameraFeatureDialog, self).__init__(parent = self)
+
+        self.setModal(True)
+    
+    @QtCore.pyqtSlot()
+    def accept(self):
+        # TODO: send commands to camera if successful
+        super(CameraFeatureDialog, self).accept()
+    
+    @QtCore.pyqtSlot()
+    def reject(self):
+        super(CameraFeatureDialog, self).reject()
+    
+    def _init_ui(self):
+        
+        self.save_btn = QtGui.QPushButton('Update values', self)
+        self.cancel_btn = QtGui.QPushButton('Cancel changes', self)
+        self.cancel_btn.setDefault(True)
+
+        # List camera features as labels
+        self.feature_list = QtGui.QListView(parent = self)
+        self.model = QtGui.QStandardItemModel(self)
+        for feature in self.camera.features:
+            item = QtGui.QStandardItem(feature)
+            self.model.appendRow(item)
+        self.feature_list.setModel(self.model)
+
+        # assemble window
+        self.list_layout = QtGui.QVBoxLayout()
+        self.list_layout.addWidget(self.feature_list)
+
+        self.buttons = QtGui.QHBoxLayout()
+        self.buttons.addWidget(self.save_btn)
+        self.buttons.addWidget(self.cancel_btn)
+        
+        self.layout = QtGui.QVBoxLayout()
+        self.layout.addLayout(self.list_layout)
+        self.layout.addLayout(self.buttons)
+        self.setLayout(self.layout)
+    
+    def _init_actions(self):
+        pass
+    
+    def _connect_signals(self):
+        self.save_btn.clicked.connect(self.accept)
+        self.cancel_btn.clicked.connect(self.reject)
+        
+
 class DataViewer(Viewer, pg.ImageView):
     """
     QWidget displaying the raw holograms, before reconstruction.
@@ -202,7 +271,7 @@ class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
             propagation_distance = [start]
         else:
             # Singe arange does not include the 'stop' value, add another step
-            propagation_distance = n.arange(start = start, stop = stop + step, step = step)
+            propagation_distance = np.arange(start = start, stop = stop + step, step = step)
         
         self.propagation_distance_signal.emit(propagation_distance)
 

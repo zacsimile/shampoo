@@ -6,6 +6,7 @@ Usage
 >>> from shampoo.gui import run
 >>> run()
 """
+from .debug import DebugCamera
 from .camera import available_cameras, AlliedVisionCamera
 import numpy as np
 import os
@@ -14,14 +15,14 @@ import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
-from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector
+from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector, CameraFeatureDialog
 
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
-def run():   
+def run(*, debug = False):   
     app = QtGui.QApplication(sys.argv)
     app.setStyle(QtGui.QStyleFactory.create('cde'))
-    gui = App()
+    gui = App(debug = debug)
     
     sys.exit(app.exec_())
 
@@ -138,7 +139,10 @@ class ShampooController(QtCore.QObject):
         # TODO: generalize to other manufacturers
         # This method should never fail. available_cameras() must have been called
         # before so that connecting is always successful.
-        self.camera = AlliedVisionCamera(ID)
+        if ID == 'debug':
+            self.camera = DebugCamera()
+        else:
+            self.camera = AlliedVisionCamera(ID)
         self.camera_connected_signal.emit(True)
 
 class App(ShampooWidget, QtGui.QMainWindow):
@@ -159,12 +163,19 @@ class App(ShampooWidget, QtGui.QMainWindow):
     """
     connect_camera_signal = QtCore.pyqtSignal(object, name = 'connect_camera_signal')
     
-    def __init__(self):
+    def __init__(self,*, debug = False):
+        """
+        Parameters
+        ----------
+        debug : keyword-only, bool, optional
+            If True, extra options are available as a debug tool. Default is False.
+        """
 
         self.data_viewer = None
         self.reconstructed_viewer = None
         self.propagation_distance_selector = None
         self.controller = ShampooController()
+        self.debug = debug
 
         super(App, self).__init__()
 
@@ -179,6 +190,10 @@ class App(ShampooWidget, QtGui.QMainWindow):
     def connect_camera(self):
         """ Bring up a modal dialog to choose amongst available cameras. """
         cameras = available_cameras()
+
+        if self.debug:
+            cameras.append('debug')
+        
         if not cameras:
             error_window = QtGui.QErrorMessage(self)
             return error_window.showMessage('No cameras available. ')
@@ -188,6 +203,14 @@ class App(ShampooWidget, QtGui.QMainWindow):
         
         if ok and camera_ID:
             self.connect_camera_signal.emit(camera_ID)
+    
+    @QtCore.pyqtSlot()
+    def change_camera_features(self):
+        self.camera_features_dialog = CameraFeatureDialog(camera = self.controller.camera, parent = self)
+        success = self.camera_features_dialog.exec_()
+        if not success:
+            # TODO: ?
+            pass
 
     def _init_ui(self):
         """
@@ -204,10 +227,12 @@ class App(ShampooWidget, QtGui.QMainWindow):
         # Assemble menu from previously-defined actions
         self.file_menu = self.menubar.addMenu('&File')
         self.camera_menu = self.menubar.addMenu('&Camera')
+        self.export_menu = self.menubar.addMenu('&Export')
+
+        # Assemble window
         self.main_splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.right_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
-        # Assemble window
         self.right_splitter.addWidget(self.propagation_distance_selector)
         self.right_splitter.addWidget(self.reconstructed_viewer)
         self.main_splitter.addWidget(self.data_viewer)
@@ -238,6 +263,16 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.camera_snapshot_action.triggered.connect(self.controller.send_snapshot_data)
         self.camera_menu.addAction(self.camera_snapshot_action)
         self.camera_snapshot_action.setEnabled(False)
+
+        self.camera_features_action = QtGui.QAction('&Change camera features', self)
+        self.camera_features_action.triggered.connect(self.change_camera_features)
+        self.camera_menu.addAction(self.camera_features_action)
+        self.camera_features_action.setEnabled(False)
+
+        self.export_reconstructed_action = QtGui.QAction('&Export current reconstructed data (placeholder)', self)
+        self.export_menu.addAction(self.export_reconstructed_action)
+        self.export_reconstructed_action.setEnabled(False)
+
     
     def _connect_signals(self):
         self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
@@ -246,7 +281,11 @@ class App(ShampooWidget, QtGui.QMainWindow):
 
         # Signify to the controller to connect to a new camera
         self.connect_camera_signal.connect(self.controller.connect_camera)
+
+        # What actions are available when a camera is made available
+        # These actions will become unavailable when a camera is disconnected.
         self.controller.camera_connected_signal.connect(self.camera_snapshot_action.setEnabled)
+        self.controller.camera_connected_signal.connect(self.camera_features_action.setEnabled)
     
     def _center_window(self):
         qr = self.frameGeometry()

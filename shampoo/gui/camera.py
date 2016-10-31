@@ -65,6 +65,13 @@ class Camera(object):
     def disconnect(self):
         raise NotImplementedError
     
+    @property
+    def features(self):
+        """
+        Returns a list of strings representing features that can be changed by the user.
+        """
+        raise NotImplementedError
+    
     def __del__(self):
         self.disconnect()
 
@@ -94,6 +101,10 @@ class AlliedVisionCamera(Camera):
         self._api.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')
         self._camera = self._api.getCamera(ID)
         self.connect() # Open camera, instantiate self._frame
+    
+    @property
+    def features(self):
+        return self.camera.getFeatureNames
     
     @property
     def resolution(self):
