@@ -185,76 +185,70 @@ class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
     propagation_distance_signal = QtCore.pyqtSignal(object, name = 'propagation_distance')
 
     def __init__(self, parent):
+
+        self.start_value_widget = None
+        self.stop_value_widget = None
+        self.step_value_widget = None
+
         super(PropagationDistanceSelector, self).__init__(parent)
     
     @QtCore.pyqtSlot()
     def _update_propagation_distance(self):
-        """
-        Emits the propagation_distance signal with the sorted propagation distance data parsed from the widget.
-        """
-        propagation_distance = list()
-        for item_row in range(0, self.table.rowCount()):
-            content = self.table.item(item_row, 0)     #QTableWidgetItem instance or None
-            if content is None:
-                content = 0.0
-            else:
-                content = content.text()
-            
-            # Content might not be castable as a float. In this case, do not append.
-            try:
-                propagation_distance.append( float(content) )
-            except:
-                pass
+        """ Emits the propagation_distance signal with the sorted propagation distance data parsed from the widget. """
+
+        start, stop, step = [float(widget.text()) for widget in (self.start_value_widget, self.stop_value_widget, self.step_value_widget)]
+
+        if step == 0:
+            propagation_distance = [start]
+        else:
+            # Singe arange does not include the 'stop' value, add another step
+            propagation_distance = n.arange(start = start, stop = stop + step, step = step)
         
-        # Remove duplicates and sort
-        propagation_distance = list(set(propagation_distance))
-        propagation_distance.sort()
         self.propagation_distance_signal.emit(propagation_distance)
-    
-    @QtCore.pyqtSlot()
-    def _add_propagation_distance_cell(self):
-        """ Collection of operations that happen when inserting a row in the table. """
-        # No need to update_propagation_distance, as an empty cell is inserted; the user
-        # will have to specify a value for the cell, which will trigger update_propagation_distance
-        self.table.insertRow(self.table.rowCount())
-    
-    @QtCore.pyqtSlot()
-    def _remove_propagation_distance_cell(self):
-        """ Collection of operations that happen when removing a row in the table """
-        self.table.removeRow(self.table.rowCount() - 1)
-        self.update_propagation_distance() 
-    
+
     def _init_ui(self):
         
         # Widgets
-        self.table = QtGui.QTableWidget(1, 1, parent = self)
-        self.add_btn = QtGui.QPushButton(QtGui.QIcon(os.path.join(ICONS_FOLDER, 'add.png')), '', self)
-        self.remove_btn = QtGui.QPushButton(QtGui.QIcon(os.path.join(ICONS_FOLDER, 'remove.png')), '', self)
+        self.start_value_widget = QtGui.QLineEdit(parent = self)
+        self.stop_value_widget = QtGui.QLineEdit(parent = self)
+        self.step_value_widget = QtGui.QLineEdit(parent = self)
 
-        # Layouts
-        # Fix width to header
-        self.table.setHorizontalHeaderLabels(['Propagation \n distances \n (m)'])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table_layout = QtGui.QVBoxLayout()
-        self.table_layout.addWidget(self.table)
+        # Initial values
+        self.start_value_widget.setText('0.0')
+        self.stop_value_widget.setText('0.0')
+        self.step_value_widget.setText('0.0')
 
-        self.btn_layout = QtGui.QHBoxLayout()
-        self.btn_layout.addWidget(self.add_btn)
-        self.btn_layout.addWidget(self.remove_btn)
 
         # Final layout
         self.layout = QtGui.QVBoxLayout()
-        self.layout.addLayout(self.table_layout)
-        self.layout.addLayout(self.btn_layout)
+
+        self.start_layout = QtGui.QVBoxLayout()
+        self.start_layout.addWidget(QtGui.QLabel('Start (m)'))
+        self.start_layout.addWidget(self.start_value_widget)
+
+        self.stop_layout = QtGui.QVBoxLayout()
+        self.stop_layout.addWidget(QtGui.QLabel('Stop (m)'))
+        self.stop_layout.addWidget(self.stop_value_widget)
+
+        self.step_layout = QtGui.QVBoxLayout()
+        self.step_layout.addWidget(QtGui.QLabel('Step (m)'))
+        self.step_layout.addWidget(self.step_value_widget)
+
+        self.values_layout = QtGui.QHBoxLayout()
+        self.values_layout.addLayout(self.start_layout)
+        self.values_layout.addLayout(self.stop_layout)
+        self.values_layout.addLayout(self.step_layout)
+
+        self._title_layout = QtGui.QHBoxLayout()
+        self._title_layout.addWidget(QtGui.QLabel(text = 'Propagation distance', parent = self))
+        self.layout.addLayout(self._title_layout)
+        self.layout.addLayout(self.values_layout)
         self.setLayout(self.layout)
     
     def _init_actions(self):
         pass
     
     def _connect_signals(self):
-        # Buttons add or remove rows
-        self.add_btn.clicked.connect(self._add_propagation_distance_cell)
-        self.remove_btn.clicked.connect(self._remove_propagation_distance_cell)
-    
-        # Updating the table updates the propagation distance
-        self.table.itemChanged.connect(self._update_propagation_distance)
+        self.start_value_widget.editingFinished.connect(self._update_propagation_distance)
+        self.stop_value_widget.editingFinished.connect(self._update_propagation_distance)
+        self.step_value_widget.editingFinished.connect(self._update_propagation_distance)

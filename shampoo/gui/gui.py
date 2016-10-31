@@ -122,7 +122,14 @@ class ShampooController(QtCore.QObject):
     
     @QtCore.pyqtSlot(object)
     def update_propagation_distance(self, item):
-        """ Thread-safe PyQt slot API to updating the propagation distance. """
+        """
+        Thread-safe PyQt slot API to updating the propagation distance. 
+
+        Parameters
+        ----------
+        item : array-like
+            Propagation distances in meters.
+        """
         self.propagation_distance = item
     
     @QtCore.pyqtSlot(object)
@@ -197,14 +204,17 @@ class App(ShampooWidget, QtGui.QMainWindow):
         # Assemble menu from previously-defined actions
         self.file_menu = self.menubar.addMenu('&File')
         self.camera_menu = self.menubar.addMenu('&Camera')
+        self.main_splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        self.right_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
         # Assemble window
-        self.splitter.addWidget(self.data_viewer)
-        self.splitter.addWidget(self.propagation_distance_selector)
-        self.splitter.addWidget(self.reconstructed_viewer)
+        self.right_splitter.addWidget(self.propagation_distance_selector)
+        self.right_splitter.addWidget(self.reconstructed_viewer)
+        self.main_splitter.addWidget(self.data_viewer)
+        self.main_splitter.addWidget(self.right_splitter)
 
-        self.layout = QtGui.QVBoxLayout()
-        self.layout.addWidget(self.splitter)
+        self.layout = QtGui.QHBoxLayout()
+        self.layout.addWidget(self.main_splitter)
 
         self.central_widget = QtGui.QWidget()
         self.central_widget.setLayout(self.layout)
@@ -213,7 +223,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.setGeometry(500, 500, 800, 800)
         self.setWindowTitle('SHAMPOO')
         self._center_window()
-        self.show()
+        self.showMaximized()
     
     def _init_actions(self):
         self.load_data_action = QtGui.QAction('&Load raw data', self)
