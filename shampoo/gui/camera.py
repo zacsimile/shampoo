@@ -8,6 +8,7 @@ available_cameras
     Prints the available, connected cameras as well as a list of their features.
 """
 from .allied_vision import Vimba
+from collections import namedtuple
 import numpy as np
 from threading import Thread
 
@@ -28,59 +29,32 @@ def available_cameras():
         
         return list(map(str, cameraIds)) # In py3+, map() returns an iterable map object
 
-class Camera(object):
-    """ Template object for cameras that can interact with shampoo.gui """
+class Feature(object):
+    """
+    Simple object containing camera feature name, value, and access mode.
+    """
+    def __init__(self, name, access_mode, value = None):
+        self.name = name
+        self.access_mode = access_mode
+        self.value = value
 
-    @property
-    def resolution(self):
-        """ Shape of the image data (height, width) """
-        raise NotImplementedError
-        
-    def snapshot(self):
-        """
-        Instantaneous snapshot.
-
-        Returns
-        -------
-        img : ndarray
-        """
-        raise NotImplementedError
-
-    def start_acquisition(self, image_queue = None):
-        """
-        Parameters
-        ----------
-        image_queue : Queue instance or None, optional
-            Thread-safe queue in which frame data is deposited as NumPy Arrays. 
-            If None (default), a callback is used on every frame.
-        """
-        raise NotImplementedError
-    
-    def stop_acquisition(self):
-        raise NotImplementedError
-       
-    def connect(self):
-        raise NotImplementedError
-    
-    def disconnect(self):
-        raise NotImplementedError
-    
-    @property
-    def features(self):
-        """
-        Returns a list of strings representing features that can be changed by the user.
-        """
-        raise NotImplementedError
-    
-    def __del__(self):
-        self.disconnect()
-
-class AlliedVisionCamera(Camera):
+class AlliedVisionCamera(object):
     """
     Camera object from manufacturer Allied Vision.
 
     In order to discover available cameras, consider using available_cameras()
+
+    Attributes
+    --------
+    exposure : float
+        Integration time in microsecond.
+    exposure_increment : float
+        Minimum integration time increment in microsecond.
+    resolution : (int, int)
+        Sensor resolution.
     """
+    features = ('exposure', 'exposure_increment', 'resolution')
+    features_access_modes = {'exposure':'RW', 'exposure_increment':'R', 'resolution':'R'}
 
     def __init__(self, ID = None):
         """
@@ -95,6 +69,7 @@ class AlliedVisionCamera(Camera):
         self._camera = None
         self._frame = None
         self._keep_acquiring = True
+        self.ID = ID
 
         # Startup
         self._api.startup()
@@ -102,9 +77,31 @@ class AlliedVisionCamera(Camera):
         self._camera = self._api.getCamera(ID)
         self.connect() # Open camera, instantiate self._frame
     
+    def __repr__(self):
+        return '< Allied Vision Camera, ID = {}>'.format(self.ID)
+    
+    def __del__(self):
+        self.disconnect()
+    
+    # Camera features
+    
     @property
-    def features(self):
-        return self.camera.getFeatureNames
+    def exposure(self):
+        """ Sensor integration time """
+        return self._camera.ExposureTimeAbs
+    
+    @exposure.setter
+    def exposure(self, value_us):
+        """ Integration time in microseconds """
+        # Make sure the exposure is allowable
+        if not (value_us % self.exposure_increment) == 0:
+            value_us = value_us + (value_us % self.exposure_increment)
+
+        self._camera.ExposureTimeAbs = value_us
+    
+    @property
+    def exposure_increment(self):
+        return self._camera.ExposureTimeIncrement
     
     @property
     def resolution(self):

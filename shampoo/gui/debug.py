@@ -2,27 +2,37 @@
 Debug classes to ease development
 """
 
-from .camera import Camera
+from .camera import AlliedVisionCamera
 import numpy as np
 from time import sleep
 
-class DebugCamera(Camera):
+class DebugCamera(AlliedVisionCamera):
     """
     Debug version of a camera object
     """
-
-    @property
-    def features(self):
-        """
-        Returns a list of strings representing features that can be changed by the user.
-        """
-        return ['Resolution', 'Framerate', 'Manufacturer', 'Model']
+    def __init__(self, *args, **kwargs): 
+        self._exposure = 16000
     
+
     @property
     def resolution(self):
         """ Shape of the image data (height, width) """
         return (1024, 1024)
-        
+    
+    @property
+    def exposure_increment(self):
+        return 10
+    
+    @property
+    def exposure(self):
+        return self._exposure
+    
+    @exposure.setter
+    def exposure(self, value_us):
+        if not (value_us % self.exposure_increment) == 0:
+            value_us = value_us + (value_us % self.exposure_increment)
+        self._exposure = value_us
+
     def snapshot(self):
         """
         Instantaneous snapshot.

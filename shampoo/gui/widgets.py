@@ -96,11 +96,12 @@ class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
         self.cancel_btn.setDefault(True)
 
         # List camera features as labels
-        self.feature_list = QtGui.QListView(parent = self)
+        self.feature_list = QtGui.QTableView(parent = self)
         self.model = QtGui.QStandardItemModel(self)
-        for feature in self.camera.features:
-            item = QtGui.QStandardItem(feature)
-            self.model.appendRow(item)
+        features = [QtGui.QStandardItem(feature) for feature in self.camera.features]
+        feature_values = [QtGui.QStandardItem( str(getattr(self.camera, name)) ) for name in self.camera.features]
+        self.model.appendColumn(features)
+        self.model.appendColumn(feature_values)
         self.feature_list.setModel(self.model)
 
         # assemble window
