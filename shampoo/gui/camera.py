@@ -53,8 +53,10 @@ class AlliedVisionCamera(object):
     resolution : (int, int)
         Sensor resolution.
     """
-    features = ('exposure', 'exposure_increment', 'resolution')
-    features_access_modes = {'exposure':'RW', 'exposure_increment':'R', 'resolution':'R'}
+    features = ('exposure', 'exposure_increment', 'resolution', 'bit_depth')
+    features_access_modes = {'exposure':'RW', 'exposure_increment':'R', 'resolution':'R', 'bit_depth':'RW'}
+
+    bit_depth_format = {8: 'Mono8', 10: 'Mono10', 12: 'Mono12', 14: 'Mono14'}
 
     def __init__(self, ID = None):
         """
@@ -107,12 +109,24 @@ class AlliedVisionCamera(object):
     def resolution(self):
         return (self._frame.height, self._frame.width)
     
+    @property
+    def bit_depth(self):
+        """ Returns the bit depth: (8, 10, 12, 14) bits"""
+        format_bit_depth = {'Mono8':8, 'Mono10':10, 'Mono12':12, 'Mono14':14}
+        return format_bit_depth[self._camera.PixelFormat]
+    
+    @bit_depth.setter
+    def bit_depth(self, depth):
+        """ Bit depth : 8, 10, 12, 14 bits. """ 
+        bit_depth_format = {8: 'Mono8', 10: 'Mono10', 12: 'Mono12', 14: 'Mono14'}
+        self.camera.PixelFormat  = bit_depth_format[depth]
+    
     def connect(self):
 
         self._camera.openCamera()
         
         # Set some feature values
-        self._camera.PixelFormat = 'Mono8'
+        self._camera.bit_depth = 8
         try:
             self._camera.StreamBytesPerSecond = 100000000 # Only valid for Gigabit-Ethernet
         except:
@@ -135,7 +149,7 @@ class AlliedVisionCamera(object):
         self._camera.runFeatureCommand('AcquisitionStop')
         self._frame.waitFrameCapture(1000)
         frame_data = self._frame.getFrameBufferData()
-        return ndarray(buffer = frame_data, dtype = n.uint8, shape = self.resolution)
+        return ndarray(buffer = frame_data, dtype = np.int, shape = self.resolution)
         
     def start_acquisition(self, image_queue):
 

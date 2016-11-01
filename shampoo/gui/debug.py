@@ -12,6 +12,7 @@ class DebugCamera(AlliedVisionCamera):
     """
     def __init__(self, *args, **kwargs): 
         self._exposure = 16000
+        self._bit_depth = 8
     
 
     @property
@@ -31,7 +32,19 @@ class DebugCamera(AlliedVisionCamera):
     def exposure(self, value_us):
         if not (value_us % self.exposure_increment) == 0:
             value_us = value_us + (value_us % self.exposure_increment)
+        print('Exposure changed to {}'.format(value_us))
         self._exposure = value_us
+    
+    @property
+    def bit_depth(self):
+        """ Returns the bit depth: (8, 10, 12, 14) bits"""
+        return self._bit_depth
+    
+    @bit_depth.setter
+    def bit_depth(self, depth):
+        """ Bit depth : 8, 10, 12, 14 bits. """ 
+        print('bit depth changed to {}'.format(depth))
+        self_bit_depth = depth
 
     def snapshot(self):
         """

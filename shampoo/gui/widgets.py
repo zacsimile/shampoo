@@ -82,7 +82,8 @@ class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
     
     @QtCore.pyqtSlot()
     def accept(self):
-        # TODO: send commands to camera if successful
+        self.camera.exposure = int(self.exposure_edit.text())
+        self.camera.bit_depth = int(self.bit_depth_edit.text())
         super(CameraFeatureDialog, self).accept()
     
     @QtCore.pyqtSlot()
@@ -95,23 +96,34 @@ class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
         self.cancel_btn = QtGui.QPushButton('Cancel changes', self)
         self.cancel_btn.setDefault(True)
 
-        # List camera features as labels
-        self.feature_list = QtGui.QTableView(parent = self)
-        self.model = QtGui.QStandardItemModel(self)
-        features = [QtGui.QStandardItem(feature) for feature in self.camera.features]
-        feature_values = [QtGui.QStandardItem( str(getattr(self.camera, name)) ) for name in self.camera.features]
-        self.model.appendColumn(features)
-        self.model.appendColumn(feature_values)
-        self.feature_list.setModel(self.model)
+        # Order in which features are enumerated must be the same as ordered in self.camera.features
+        # The order is assumed here
+        feature_labels = [QtGui.QLabel(label) for label in ('Exposure (us)', 'Exposure increment (us)', 'Resolution (px, px)', 'Bit depth')]
+        self.exposure_edit = QtGui.QLineEdit(str(self.camera.exposure), parent = self)
+        self.exposure_inc_edit = QtGui.QLineEdit(str(self.camera.exposure_increment), parent = self)
+        self.resolution_edit = QtGui.QLineEdit(str(self.camera.resolution), parent = self)
+        self.bit_depth_edit = QtGui.QLineEdit(str(self.camera.bit_depth), parent = self) 
+        feature_edit = [self.exposure_edit, self.exposure_inc_edit, self.resolution_edit, self.bit_depth_edit]
 
-        # assemble window
-        self.list_layout = QtGui.QVBoxLayout()
-        self.list_layout.addWidget(self.feature_list)
+        #Set access mode
+        # TODO: set automatically?
+        self.exposure_inc_edit.setReadOnly(True)
+        self.resolution_edit.setReadOnly(True)
+
+        self.labels_layout = QtGui.QVBoxLayout()
+        self.values_layout = QtGui.QVBoxLayout()
+        for label, edit in zip( feature_labels, feature_edit ):
+            self.labels_layout.addWidget(label)
+            self.values_layout.addWidget(edit)
 
         self.buttons = QtGui.QHBoxLayout()
         self.buttons.addWidget(self.save_btn)
         self.buttons.addWidget(self.cancel_btn)
         
+        self.list_layout = QtGui.QHBoxLayout()
+        self.list_layout.addLayout(self.labels_layout)
+        self.list_layout.addLayout(self.values_layout)
+
         self.layout = QtGui.QVBoxLayout()
         self.layout.addLayout(self.list_layout)
         self.layout.addLayout(self.buttons)
