@@ -110,7 +110,7 @@ class AlliedVisionCamera(object):
     def bit_depth(self, depth):
         """ Bit depth : 8, 10, 12, 14 bits. """ 
         bit_depth_format = {8: b'Mono8', 10: b'Mono10', 12: b'Mono12', 14: b'Mono14'}
-        self.camera.PixelFormat  = bit_depth_format[depth]
+        self._camera.PixelFormat  = bit_depth_format[depth]
     
     def connect(self):
 
