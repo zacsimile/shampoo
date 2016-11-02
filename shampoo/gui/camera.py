@@ -27,16 +27,7 @@ def available_cameras():
         vimba.getSystem().runFeatureCommand('GeVDiscoveryAllOnce')  # Enable gigabit-ethernet discovery
         cameraIds = vimba.getCameraIds()
         
-        return list(map(str, cameraIds)) # In py3+, map() returns an iterable map object
-
-class Feature(object):
-    """
-    Simple object containing camera feature name, value, and access mode.
-    """
-    def __init__(self, name, access_mode, value = None):
-        self.name = name
-        self.access_mode = access_mode
-        self.value = value
+    return [byte.decode('utf-8') for byte in cameraIds]
 
 class AlliedVisionCamera(object):
     """
@@ -53,10 +44,10 @@ class AlliedVisionCamera(object):
     resolution : (int, int)
         Sensor resolution.
     """
-    features = ('exposure', 'exposure_increment', 'resolution', 'bit_depth')
-    features_access_modes = {'exposure':'RW', 'exposure_increment':'R', 'resolution':'R', 'bit_depth':'RW'}
+    features = ('exposure', 'resolution', 'bit_depth')
+    features_access_modes = {'exposure':'RW', 'resolution':'R', 'bit_depth':'R'}
 
-    bit_depth_format = {8: 'Mono8', 10: 'Mono10', 12: 'Mono12', 14: 'Mono14'}
+    bit_depth_format = {8: b'Mono8', 10: b'Mono10', 12: b'Mono12', 14: b'Mono14'}
 
     def __init__(self, ID = None):
         """
@@ -71,6 +62,9 @@ class AlliedVisionCamera(object):
         self._camera = None
         self._frame = None
         self._keep_acquiring = True
+        
+        if isinstance(ID, str):
+            ID = ID.encode('utf-8')
         self.ID = ID
 
         # Startup
@@ -95,13 +89,6 @@ class AlliedVisionCamera(object):
     @exposure.setter
     def exposure(self, value_us):
         """ Integration time in microseconds """
-        # Make sure the exposure is allowable
-        if value_us < self.exposure_increment:
-            value_us = self.exposure_increment
-        
-        elif value_us % self.exposure_increment != 0:
-            value_us = value_us - (value_us % self.exposure_increment)
-
         self._camera.ExposureTimeAbs = value_us
     
     # TODO: some read-only properties as cached properties?
@@ -116,13 +103,13 @@ class AlliedVisionCamera(object):
     @property
     def bit_depth(self):
         """ Returns the bit depth: (8, 10, 12, 14) bits"""
-        format_bit_depth = {'Mono8':8, 'Mono10':10, 'Mono12':12, 'Mono14':14}
+        format_bit_depth = {b'Mono8':8, b'Mono10':10, b'Mono12':12, b'Mono14':14}
         return format_bit_depth[self._camera.PixelFormat]
     
     @bit_depth.setter
     def bit_depth(self, depth):
         """ Bit depth : 8, 10, 12, 14 bits. """ 
-        bit_depth_format = {8: 'Mono8', 10: 'Mono10', 12: 'Mono12', 14: 'Mono14'}
+        bit_depth_format = {8: b'Mono8', 10: b'Mono10', 12: b'Mono12', 14: b'Mono14'}
         self.camera.PixelFormat  = bit_depth_format[depth]
     
     def connect(self):
@@ -152,8 +139,8 @@ class AlliedVisionCamera(object):
         self._camera.runFeatureCommand('AcquisitionStart')
         self._camera.runFeatureCommand('AcquisitionStop')
         self._frame.waitFrameCapture(1000)
-        frame_data = self._frame.getFrameBufferData()
-        return ndarray(buffer = frame_data, dtype = np.int, shape = self.resolution)
+        frame_data = self._frame.getBufferByteData()
+        return np.ndarray(buffer = frame_data, dtype = np.int8, shape = self.resolution)
         
     def start_acquisition(self, image_queue):
 

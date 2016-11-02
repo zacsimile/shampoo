@@ -112,17 +112,16 @@ class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
 
         # Order in which features are enumerated must be the same as ordered in self.camera.features
         # The order is assumed here
-        feature_labels = [QtGui.QLabel(label) for label in ('Exposure (us)', 'Exposure increment (us)', 'Resolution (px, px)', 'Bit depth')]
+        feature_labels = [QtGui.QLabel(label) for label in ('Exposure (us)', 'Resolution (px, px)', 'Bit depth')]
         self.exposure_edit = QtGui.QLineEdit(str(self.camera.exposure), parent = self)
-        self.exposure_inc_edit = QtGui.QLineEdit(str(self.camera.exposure_increment), parent = self)
         self.resolution_edit = QtGui.QLineEdit(str(self.camera.resolution), parent = self)
         self.bit_depth_edit = QtGui.QLineEdit(str(self.camera.bit_depth), parent = self) 
-        feature_edit = [self.exposure_edit, self.exposure_inc_edit, self.resolution_edit, self.bit_depth_edit]
+        feature_edit = [self.exposure_edit, self.resolution_edit, self.bit_depth_edit]
 
         #Set access mode
         # TODO: set automatically?
-        self.exposure_inc_edit.setReadOnly(True)
         self.resolution_edit.setReadOnly(True)
+        self.bit_depth_edit.setReadOnly(True)
 
         self.labels_layout = QtGui.QVBoxLayout()
         self.values_layout = QtGui.QVBoxLayout()
