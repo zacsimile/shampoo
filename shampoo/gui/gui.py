@@ -15,7 +15,7 @@ import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
-from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector, CameraFeatureDialog
+from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar
 
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
@@ -74,14 +74,12 @@ class ShampooController(QtCore.QObject):
     raw_data_signal = QtCore.pyqtSignal(object, name = 'raw_data_signal')
     reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
 
+    # Status signals
+    reconstruction_in_progress_signal = QtCore.pyqtSignal(str, name = 'reconstruction_in_progress_signal')
+    reconstruction_complete_signal = QtCore.pyqtSignal(str, name = 'reconstruction_complete_signal')
     camera_connected_signal = QtCore.pyqtSignal(bool, name = 'camera_connected_signal')
 
     def __init__(self, **kwargs):
-        """
-        Parameters
-        ----------
-        output_function: callable
-        """
         super(ShampooController, self).__init__(**kwargs)
         self.reconstructed_queue = ProcessSafeQueue()
         self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
@@ -90,8 +88,12 @@ class ShampooController(QtCore.QObject):
         self.camera_connected_signal.emit(False)
 
         # Wire up reactors
+        def display_callback(item):
+            self.reconstructed_hologram_signal.emit(item)
+            self.reconstruction_complete_signal.emit('Reconstruction complete') 
+        
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
-        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = self.reconstructed_hologram_signal.emit)
+        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = display_callback)
         self.reconstruction_reactor.start(), self.display_reactor.start()
 
         # Private attributes
@@ -124,6 +126,7 @@ class ShampooController(QtCore.QObject):
         self._latest_hologram = data
         self.raw_data_signal.emit(data)
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
+        self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
     
     @QtCore.pyqtSlot(object)
     def update_propagation_distance(self, item):
@@ -245,7 +248,11 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.main_splitter.addWidget(self.data_viewer)
         self.main_splitter.addWidget(self.right_splitter)
 
-        self.layout = QtGui.QHBoxLayout()
+        self.status_bar = ShampooStatusBar(parent = self)
+        self.setStatusBar(self.status_bar)
+        self.status_bar.update_status('Ready')
+
+        self.layout = QtGui.QVBoxLayout()
         self.layout.addWidget(self.main_splitter)
 
         self.central_widget = QtGui.QWidget()
@@ -286,16 +293,22 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
         self.controller.raw_data_signal.connect(self.data_viewer.display)
 
-        # Signify to the controller to connect to a new camera
+        # Controller status signals
         self.connect_camera_signal.connect(self.controller.connect_camera)
+        self.controller.reconstruction_in_progress_signal.connect(self.status_bar.update_status)
+        self.controller.reconstruction_complete_signal.connect(self.status_bar.update_status)
 
         # What actions are available when a camera is made available
         # These actions will become unavailable when a camera is disconnected.
         self.controller.camera_connected_signal.connect(self.camera_snapshot_action.setEnabled)
         self.controller.camera_connected_signal.connect(self.camera_features_action.setEnabled)
+        self.controller.camera_connected_signal.connect(lambda x: self.status_bar.update_status('Camera connected'))
     
     def _center_window(self):
         qr = self.frameGeometry()
         cp = QtGui.QDesktopWidget().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
+    
+    def __del__(self):
+        self.controller.__del__()

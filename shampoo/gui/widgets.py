@@ -55,6 +55,17 @@ class Viewer(ShampooWidget):
 #########################################################################################
 ###             GUI COMPONENTS
 
+class ShampooStatusBar(QtGui.QStatusBar):
+
+    def __init__(self, *args, **kwargs):
+        super(ShampooStatusBar, self).__init__(*args, **kwargs)
+        self.status_label = QtGui.QLabel()
+        self.addPermanentWidget(self.status_label)
+    
+    @QtCore.pyqtSlot(str)
+    def update_status(self, message):
+        self.status_label.setText(message)
+
 class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
     """
     Modal dialog used to set camera features within SHAMPOO
