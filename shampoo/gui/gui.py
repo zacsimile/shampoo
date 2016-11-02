@@ -93,6 +93,9 @@ class ShampooController(QtCore.QObject):
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
         self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = self.reconstructed_hologram_signal.emit)
         self.reconstruction_reactor.start(), self.display_reactor.start()
+
+        # Private attributes
+        self._latest_hologram = None
     
     def __del__(self):
         self.reconstruction_reactor.stop()
@@ -118,6 +121,7 @@ class ShampooController(QtCore.QObject):
         """
         if not isinstance(data, Hologram):
             data = Hologram(data)
+        self._latest_hologram = data
         self.raw_data_signal.emit(data)
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
     
@@ -132,6 +136,9 @@ class ShampooController(QtCore.QObject):
             Propagation distances in meters.
         """
         self.propagation_distance = item
+        # Refresh screen
+        if self._latest_hologram:
+            self.send_data(self._latest_hologram)
     
     @QtCore.pyqtSlot(object)
     def connect_camera(self, ID):
