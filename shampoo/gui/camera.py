@@ -96,11 +96,15 @@ class AlliedVisionCamera(object):
     def exposure(self, value_us):
         """ Integration time in microseconds """
         # Make sure the exposure is allowable
-        if not (value_us % self.exposure_increment) == 0:
-            value_us = value_us + (value_us % self.exposure_increment)
+        if value_us < self.exposure_increment:
+            value_us = self.exposure_increment
+        
+        elif value_us % self.exposure_increment != 0:
+            value_us = value_us - (value_us % self.exposure_increment)
 
         self._camera.ExposureTimeAbs = value_us
     
+    # TODO: some read-only properties as cached properties?
     @property
     def exposure_increment(self):
         return self._camera.ExposureTimeIncrement
