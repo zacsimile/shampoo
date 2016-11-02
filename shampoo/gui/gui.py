@@ -100,10 +100,6 @@ class ShampooController(QtCore.QObject):
         # Private attributes
         self._latest_hologram = None
     
-    def __del__(self):
-        self.reconstruction_reactor.stop()
-        self.display_reactor.stop()
-    
     @QtCore.pyqtSlot(object)
     def send_snapshot_data(self):
         """
@@ -178,6 +174,11 @@ class ShampooController(QtCore.QObject):
         else:
             self.camera = AlliedVisionCamera(ID)
         self.camera_connected_signal.emit(True)
+    
+    def stop(self):
+        """ Stop all reactors. """
+        self.display_reactor.stop()
+        self.reconstruction_reactor.stop()
 
 class App(ShampooWidget, QtGui.QMainWindow):
     """
@@ -246,6 +247,16 @@ class App(ShampooWidget, QtGui.QMainWindow):
         if not success:
             # TODO: ?
             pass
+    
+    def closeEvent(self, event):
+        reply = QtGui.QMessageBox.question(self, 'SHAMPOO', 'Are you sure you want to quit?', 
+                                           QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+
+        if reply == QtGui.QMessageBox.Yes:
+            event.accept()
+            self.controller.stop()
+        else:
+            event.ignore()
 
     def _init_ui(self):
         self.data_viewer = DataViewer(parent = self)
