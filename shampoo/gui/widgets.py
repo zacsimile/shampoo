@@ -4,7 +4,6 @@ import numpy as np
 import os
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
-from .reactor import Reactor
 from ..reconstruction import Hologram, ReconstructedWave
 
 ICONS_FOLDER = os.path.join(os.path.dirname(__file__), 'icons')
@@ -56,7 +55,9 @@ class Viewer(ShampooWidget):
 ###             GUI COMPONENTS
 
 class ShampooStatusBar(QtGui.QStatusBar):
-
+    """
+    QStatusBar subclass with a simplied API to update the status.
+    """
     def __init__(self, *args, **kwargs):
         super(ShampooStatusBar, self).__init__(*args, **kwargs)
         self.status_label = QtGui.QLabel()
@@ -78,6 +79,8 @@ class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
 
     rejected
     """
+    camera_features_update_signal = QtCore.pyqtSignal(dict, name = 'camera_features_update_signal')
+
     def __init__(self, camera, parent = None):
         """
         Parameters
@@ -93,8 +96,8 @@ class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
     
     @QtCore.pyqtSlot()
     def accept(self):
-        self.camera.exposure = int(self.exposure_edit.text())
-        self.camera.bit_depth = int(self.bit_depth_edit.text())
+        feature_dict = {'exposure': int(self.exposure_edit.text()), 'bit_depth': int(self.bit_depth_edit.text())}
+        self.camera_features_update_signal.emit(feature_dict)
         super(CameraFeatureDialog, self).accept()
     
     @QtCore.pyqtSlot()

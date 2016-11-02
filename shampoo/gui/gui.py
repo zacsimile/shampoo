@@ -23,7 +23,6 @@ def run(*, debug = False):
     app = QtGui.QApplication(sys.argv)
     app.setStyle(QtGui.QStyleFactory.create('cde'))
     gui = App(debug = debug)
-    
     sys.exit(app.exec_())
 
 def _reconstruct_hologram(item):
@@ -62,6 +61,8 @@ class ShampooController(QtCore.QObject):
     
     update_propagation_distance
         Change the propagation distance(s) used in the holographic reconstruction process.
+    
+    update_camera_features
     
     connect_camera
         Connect a camera by ID. Check for available cameras using available_cameras()
@@ -143,9 +144,32 @@ class ShampooController(QtCore.QObject):
         if self._latest_hologram:
             self.send_data(self._latest_hologram)
     
+    @QtCore.pyqtSlot(dict)
+    def update_camera_features(self, feature_dict):
+        """ 
+        Update camera features (e.g. exposure, bit depth) according to a dictionary.
+        
+        Parameters
+        ----------
+        feature_dict : dict
+        """
+        if not self.camera:
+            return
+        
+        for feature, value in feature_dict.items():
+            setattr(self.camera, feature, value)
+    
     @QtCore.pyqtSlot(object)
     def connect_camera(self, ID):
-        """ Connect camera by ID. """
+        """ 
+        Connect camera by ID. 
+        
+        Parameters
+        ----------
+        ID : str
+            String identifier to a camera. If 'debug', a dummy DebugCamera
+            instance will be connected.
+        """
         # TODO: generalize to other manufacturers
         # This method should never fail. available_cameras() must have been called
         # before so that connecting is always successful.
@@ -217,15 +241,13 @@ class App(ShampooWidget, QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def change_camera_features(self):
         self.camera_features_dialog = CameraFeatureDialog(camera = self.controller.camera, parent = self)
+        self.camera_features_dialog.camera_features_update_signal.connect(self.controller.update_camera_features)
         success = self.camera_features_dialog.exec_()
         if not success:
             # TODO: ?
             pass
 
     def _init_ui(self):
-        """
-        Method initializing UI components.
-        """
         self.data_viewer = DataViewer(parent = self)
         self.reconstructed_viewer = ReconstructedHologramViewer(parent = self)
         self.propagation_distance_selector = PropagationDistanceSelector(parent = self)
@@ -300,15 +322,12 @@ class App(ShampooWidget, QtGui.QMainWindow):
 
         # What actions are available when a camera is made available
         # These actions will become unavailable when a camera is disconnected.
+        self.controller.camera_connected_signal.connect(lambda x: self.status_bar.update_status('Camera connected'))
         self.controller.camera_connected_signal.connect(self.camera_snapshot_action.setEnabled)
         self.controller.camera_connected_signal.connect(self.camera_features_action.setEnabled)
-        self.controller.camera_connected_signal.connect(lambda x: self.status_bar.update_status('Camera connected'))
     
     def _center_window(self):
         qr = self.frameGeometry()
         cp = QtGui.QDesktopWidget().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
-    
-    def __del__(self):
-        self.controller.__del__()

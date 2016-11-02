@@ -44,7 +44,7 @@ class DebugCamera(AlliedVisionCamera):
     def bit_depth(self, depth):
         """ Bit depth : 8, 10, 12, 14 bits. """ 
         print('bit depth changed to {}'.format(depth))
-        self_bit_depth = depth
+        self._bit_depth = depth
 
     def snapshot(self):
         """
@@ -84,4 +84,5 @@ class DebugCamera(AlliedVisionCamera):
        
     def connect(self): pass
     
-    def disconnect(self): pass
+    def disconnect(self):
+        self.stop_acquisition()

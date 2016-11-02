@@ -178,11 +178,7 @@ class AlliedVisionCamera(object):
     
     def disconnect(self):
         
-        try:
-            self.stop_acquisition()
-        except:
-            pass
-        
+        self.stop_acquisition()
         self._camera.endCapture()
         self._camera.revokeAllFrames()
         self._camera.closeCamera()
