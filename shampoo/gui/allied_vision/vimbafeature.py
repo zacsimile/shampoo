@@ -34,15 +34,14 @@ class VimbaFeature(object):
         return self._rangeQueryTypeFuncs[self._info.featureDataType]()
 
     def __init__(self, name, handle):
-
+        self._api =  VimbaDLL()
+        
         # set name and handle
         self._name = name
         self._handle = handle
 
         # set own info
         self._info = self._getInfo()
-
-        self._api = self._api
 
         # type functions dict for looking up correct get/set function to use
         self._getSetTypeFuncs = {0: (self._notYetImplemented, self._notYetImplemented),		# todo

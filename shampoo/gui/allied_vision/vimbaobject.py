@@ -33,13 +33,13 @@ class VimbaObject(object):
 
         # if a feature value requested (requires object (camera) open)
         attr = bytes(attr, 'utf-8')
-        if attr in self.getFeatureNames():
+        try:
             return VimbaFeature(attr, self._handle).value
-
-        # otherwise don't know about it
-        raise AttributeError(''.join(["'VimbaObject' has no attribute '",
-                                      attr,
-                                      "'"]))
+        except:
+            # otherwise don't know about it
+            raise AttributeError(''.join(["'VimbaObject' has no attribute '",
+                                          attr.decode('utf-8'),
+                                          "'"]))
 
     # override setattr for undefined attributes
     def __setattr__(self, attr, val):
