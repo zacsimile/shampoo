@@ -29,3 +29,5 @@ Example
 """
 
 from .vimba import Vimba
+
+STRING_ENCODING = 'utf-8'

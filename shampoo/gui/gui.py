@@ -74,6 +74,7 @@ class ShampooController(QtCore.QObject):
     """
     raw_data_signal = QtCore.pyqtSignal(object, name = 'raw_data_signal')
     reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
+    fourier_mask_signal = QtCore.pyqtSignal(object, name = 'fourier_mask_signal')
 
     # Status signals
     reconstruction_in_progress_signal = QtCore.pyqtSignal(str, name = 'reconstruction_in_progress_signal')
@@ -124,6 +125,17 @@ class ShampooController(QtCore.QObject):
         self.raw_data_signal.emit(data)
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
         self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
+    
+    @QtCore.pyqtSlot(object)
+    def save_latest_hologram(self, path):
+        """
+        Save latest raw holographic data into a HDF5
+
+        Parameters
+        ----------
+        path : str or path-like object
+        """
+        raise NotImplementedError
     
     @QtCore.pyqtSlot(object)
     def update_propagation_distance(self, item):
@@ -222,6 +234,12 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.controller.send_data(data = hologram)
     
     @QtCore.pyqtSlot()
+    def save_raw_data(self):
+        """ Save a raw hologram from the raw data screen """
+        path = self.file_dialog.getOpenFileName(self, 'Save holographic data', filter = '*hdf5')
+        self.controller.save_latest_hologram(path)
+    
+    @QtCore.pyqtSlot()
     def connect_camera(self):
         """ Bring up a modal dialog to choose amongst available cameras. """
         cameras = available_cameras()
@@ -245,8 +263,8 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.camera_features_dialog.camera_features_update_signal.connect(self.controller.update_camera_features)
         success = self.camera_features_dialog.exec_()
         if not success:
-            # TODO: ?
-            pass
+            error_window = QtGui.QErrorMessage(self)
+            return error_window.showMessage('Camera features could not be updated.')
     
     def closeEvent(self, event):
         reply = QtGui.QMessageBox.question(self, 'SHAMPOO', 'Are you sure you want to quit?', 
@@ -302,6 +320,11 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.load_data_action.triggered.connect(self.load_data)
         self.file_menu.addAction(self.load_data_action)
 
+        self.save_data_action = QtGui.QAction('&Save raw data', self)
+        self.save_data_action.trigerred.connect(self.save_raw_data)
+        self.file_menu.addAction(self.save_data_action)
+        self.save_data_action.setEnabled(False)
+
         self.connect_camera_action = QtGui.QAction('&Connect a camera', self)
         self.connect_camera_action.triggered.connect(self.connect_camera)
         self.camera_menu.addAction(self.connect_camera_action)
@@ -336,6 +359,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.controller.camera_connected_signal.connect(lambda x: self.status_bar.update_status('Camera connected'))
         self.controller.camera_connected_signal.connect(self.camera_snapshot_action.setEnabled)
         self.controller.camera_connected_signal.connect(self.camera_features_action.setEnabled)
+        self.controller.raw_data_signal.connect(lambda x: self.save_data_action.setEnabled(True))
     
     def _center_window(self):
         qr = self.frameGeometry()

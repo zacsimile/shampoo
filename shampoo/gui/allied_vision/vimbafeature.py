@@ -15,6 +15,10 @@ class VimbaFeature(object):
     @property
     def name(self):
         return self._name
+    
+    @property
+    def name_bytes(self):
+        return bytes(self._name, 'utf-8')
 
     @property
     def handle(self):
