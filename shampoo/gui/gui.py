@@ -15,7 +15,8 @@ import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
 import sys
-from .widgets import ShampooWidget, DataViewer, ReconstructedHologramViewer, PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar
+from .widgets import (ShampooWidget, DataViewer, FourierPlaneViewer, ReconstructedHologramViewer, 
+                      PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
 
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
@@ -73,6 +74,7 @@ class ShampooController(QtCore.QObject):
         Choose camera from a list of ID. Not implemented.
     """
     raw_data_signal = QtCore.pyqtSignal(object, name = 'raw_data_signal')
+    fourier_plane_signal = QtCore.pyqtSignal(object, name = 'fourier_plane_signal')
     reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
     fourier_mask_signal = QtCore.pyqtSignal(object, name = 'fourier_mask_signal')
 
@@ -101,7 +103,7 @@ class ShampooController(QtCore.QObject):
         # Private attributes
         self._latest_hologram = None
     
-    @QtCore.pyqtSlot(object)
+    @QtCore.pyqtSlot()
     def send_snapshot_data(self):
         """
         Send holographic data from the camera to the reconstruction reactor.
@@ -278,16 +280,17 @@ class App(ShampooWidget, QtGui.QMainWindow):
 
     def _init_ui(self):
         self.data_viewer = DataViewer(parent = self)
+        self.fourier_plane_viewer = FourierPlaneViewer(parent = self)
         self.reconstructed_viewer = ReconstructedHologramViewer(parent = self)
         self.propagation_distance_selector = PropagationDistanceSelector(parent = self)
 
         self.file_dialog = QtGui.QFileDialog(parent = self)
         self.menubar = self.menuBar()
-        self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
 
         # Assemble menu from previously-defined actions
         self.file_menu = self.menubar.addMenu('&File')
         self.camera_menu = self.menubar.addMenu('&Camera')
+        self.view_menu = self.menubar.addMenu('&View')
         self.export_menu = self.menubar.addMenu('&Export')
 
         # Assemble window
@@ -297,6 +300,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.right_splitter.addWidget(self.propagation_distance_selector)
         self.right_splitter.addWidget(self.reconstructed_viewer)
         self.main_splitter.addWidget(self.data_viewer)
+        self.main_splitter.addWidget(self.fourier_plane_viewer)
         self.main_splitter.addWidget(self.right_splitter)
 
         self.status_bar = ShampooStatusBar(parent = self)
@@ -310,6 +314,9 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.central_widget.setLayout(self.layout)
         self.setCentralWidget(self.central_widget)
         
+        # Initial setup does not show the fourier plane
+        self.fourier_plane_viewer.setVisible(False)
+
         self.setGeometry(500, 500, 800, 800)
         self.setWindowTitle('SHAMPOO')
         self._center_window()
@@ -321,7 +328,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.file_menu.addAction(self.load_data_action)
 
         self.save_data_action = QtGui.QAction('&Save raw data', self)
-        self.save_data_action.trigerred.connect(self.save_raw_data)
+        self.save_data_action.triggered.connect(self.save_raw_data)
         self.file_menu.addAction(self.save_data_action)
         self.save_data_action.setEnabled(False)
 
@@ -339,6 +346,12 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.camera_menu.addAction(self.camera_features_action)
         self.camera_features_action.setEnabled(False)
 
+        self.view_fourier_plane_action = QtGui.QAction('&View Fourier plane', self)
+        self.view_fourier_plane_action.toggled.connect(self.fourier_plane_viewer.setVisible)
+        self.view_menu.addAction(self.view_fourier_plane_action)
+        self.view_fourier_plane_action.setCheckable(True)
+        self.view_fourier_plane_action.setChecked(False)
+
         self.export_reconstructed_action = QtGui.QAction('&Export current reconstructed data (placeholder)', self)
         self.export_menu.addAction(self.export_reconstructed_action)
         self.export_reconstructed_action.setEnabled(False)
@@ -347,6 +360,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
     def _connect_signals(self):
         self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
+        self.controller.fourier_plane_signal.connect(self.fourier_plane_viewer.display)
         self.controller.raw_data_signal.connect(self.data_viewer.display)
 
         # Controller status signals

@@ -25,14 +25,11 @@ class ShampooWidget(object):
         self._init_actions()
         self._connect_signals()
 
-    def _init_ui(self):
-        raise NotImplementedError
+    def _init_ui(self): pass
 
-    def _init_actions(self):
-        raise NotImplementedError
+    def _init_actions(self): pass
 
-    def _connect_signals(self):
-        raise NotImplementedError
+    def _connect_signals(self): pass
 
 class Viewer(ShampooWidget):
     """
@@ -45,10 +42,6 @@ class Viewer(ShampooWidget):
     
     @QtCore.pyqtSlot(object)
     def display(self, item):
-        raise NotImplementedError
-    
-    @QtCore.pyqtSlot()
-    def clear(self):
         raise NotImplementedError
 
 #########################################################################################
@@ -148,7 +141,6 @@ class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
     def _connect_signals(self):
         self.save_btn.clicked.connect(self.accept)
         self.cancel_btn.clicked.connect(self.reject)
-        
 
 class DataViewer(Viewer, pg.ImageView):
     """
@@ -183,16 +175,50 @@ class DataViewer(Viewer, pg.ImageView):
         if isinstance(item, Hologram):
             item = item.hologram
         self.setImage(item)
-    
-    @QtCore.pyqtSlot()
-    def clear(self):
-        self.clear()
-    
-    def _init_ui(self): pass
 
-    def _init_actions(self): pass
+class FourierPlaneViewer(Viewer, QtGui.QWidget):
+    """
+    QWidget displaying the raw holograms, before reconstruction.
+
+    Slots
+    -----
+    display
+        Display raw holographic data.
     
-    def _connect_signals(self):pass
+    clear
+        Clear view.
+    """
+
+    def __init__(self, parent, **kwargs):
+        """
+        Parameters
+        ----------
+        parent : QObject
+        """
+        super(FourierPlaneViewer, self).__init__(parent = parent, **kwargs)
+        self.viewer = None
+    
+    @QtCore.pyqtSlot(object)
+    def display(self, item):
+        """
+        Displays a shampoo.Hologram or NumPy array.
+
+        Parameters
+        ----------
+        item : ndarray
+        """
+        # FourierPlaneViewer might be hidden most of the time. No point in updating the image
+        # in this case
+        if self.isVisible():
+            self.viewer.setImage(item)
+
+    def _init_ui(self):
+        self.viewer = pg.ImageView(parent = self, name = 'Reconstructed amplitude')
+        
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(QtGui.QLabel('Fourier plane', parent = self))
+        layout.addWidget(self.viewer)
+        self.setLayout(layout)
 
 class ReconstructedHologramViewer(Viewer, QtGui.QWidget):
     """
