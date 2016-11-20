@@ -54,7 +54,8 @@ class DebugCamera(AlliedVisionCamera):
         -------
         img : ndarray
         """
-        return np.random.random(size = self.resolution)
+        arr = 256*np.random.random(size = self.resolution)
+        return arr.astype(np.uint8)
 
     def start_acquisition(self, image_queue):
 

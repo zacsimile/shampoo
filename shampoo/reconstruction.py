@@ -102,11 +102,7 @@ def _load_hologram(hologram_path):
     """
     Load a hologram from path ``hologram_path`` using scikit-image and numpy.
     """
-    try:
-        from PIL import Image
-        return np.array(Image.open(hologram_path, 'r'), dtype=np.float64)
-    except ImportError:
-        return np.array(imread(hologram_path), dtype=np.float64)
+    return np.array(imread(hologram_path, plugin = 'tifffile'), dtype=np.float64)
 
 def _find_peak_centroid(image, gaussian_width=10):
     """

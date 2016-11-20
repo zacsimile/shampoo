@@ -14,6 +14,7 @@ from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
 from ..reconstruction import Hologram, ReconstructedWave
+from skimage.io import imsave
 import sys
 from .widgets import (ShampooWidget, DataViewer, FourierPlaneViewer, ReconstructedHologramViewer, 
                       PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
@@ -137,7 +138,7 @@ class ShampooController(QtCore.QObject):
         ----------
         path : str or path-like object
         """
-        raise NotImplementedError
+        imsave(path, arr = self._latest_hologram.hologram, plugin = 'tifffile')
     
     @QtCore.pyqtSlot(object)
     def update_propagation_distance(self, item):
@@ -238,7 +239,9 @@ class App(ShampooWidget, QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def save_raw_data(self):
         """ Save a raw hologram from the raw data screen """
-        path = self.file_dialog.getOpenFileName(self, 'Save holographic data', filter = '*hdf5')
+        path = self.file_dialog.getSaveFileName(self, 'Save holographic data', filter = '*tif')
+        if not path.endswith('.tif'):
+            path = path + '.tif'
         self.controller.save_latest_hologram(path)
     
     @QtCore.pyqtSlot()
@@ -291,7 +294,6 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.file_menu = self.menubar.addMenu('&File')
         self.camera_menu = self.menubar.addMenu('&Camera')
         self.view_menu = self.menubar.addMenu('&View')
-        self.export_menu = self.menubar.addMenu('&Export')
 
         # Assemble window
         self.main_splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
@@ -353,7 +355,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.view_fourier_plane_action.setChecked(False)
 
         self.export_reconstructed_action = QtGui.QAction('&Export current reconstructed data (placeholder)', self)
-        self.export_menu.addAction(self.export_reconstructed_action)
+        self.file_menu.addAction(self.export_reconstructed_action)
         self.export_reconstructed_action.setEnabled(False)
 
     
