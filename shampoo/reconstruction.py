@@ -18,6 +18,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 from .vis import save_scaled_image
 
+import h5py
 import numpy as np
 from scipy.ndimage import gaussian_filter
 from scipy.signal import tukey
@@ -647,6 +648,24 @@ class ReconstructedWave(object):
         self._intensity_image = None
         self._phase_image = None
         self.random_seed = RANDOM_SEED
+    
+    @classmethod
+    def from_hdf5(cls, path):
+        """
+        Create an instance from a previously-created HDF5 file.
+
+        Parameters
+        ----------
+        path : str or path-like object
+            Location of the hdf5 file.
+        
+        Raises
+        ------
+        IOError
+            If file does not already exist.
+        """
+        with h5py.File(name = path, mode = 'r') as f:
+            raise NotImplementedError
 
     @property
     def intensity(self):
@@ -675,6 +694,24 @@ class ReconstructedWave(object):
         `~numpy.ndarray` of the complex reconstructed wave
         """
         return self._reconstructed_wave
+    
+    def save(self, path, **kwargs):
+        """
+        Save the instance as an HDF5 file. Keyword arguments are passed to the h5py.File
+        constructor.
+
+        Parameters
+        ----------
+        path : str or path-like object
+            Location of the hdf5 file.
+        
+        Raises
+        ------
+        IOError
+            If file already exists.
+        """
+        with h5py.File(name = path, mode = 'x', **kwargs) as f:
+            raise NotImplementedError
 
     def plot(self, phase=False, intensity=False, all=False,
              cmap=plt.cm.binary_r):
