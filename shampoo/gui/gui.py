@@ -9,7 +9,7 @@ Usage
 from .debug import DebugCamera
 from .camera import available_cameras, AlliedVisionCamera
 import numpy as np
-import os
+import os.path
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
@@ -18,8 +18,6 @@ from skimage.io import imsave
 import sys
 from .widgets import (ShampooWidget, DataViewer, FourierPlaneViewer, ReconstructedHologramViewer, 
                       PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
-
-DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
 def run(*, debug = False):   
     app = QtGui.QApplication(sys.argv)
@@ -87,7 +85,7 @@ class ShampooController(QtCore.QObject):
     def __init__(self, **kwargs):
         super(ShampooController, self).__init__(**kwargs)
         self.reconstructed_queue = ProcessSafeQueue()
-        self.propagation_distance = [DEFAULT_PROPAGATION_DISTANCE]
+        self.propagation_distance = list()
         
         self.camera = None
         self.camera_connected_signal.emit(False)
@@ -204,6 +202,9 @@ class App(ShampooWidget, QtGui.QMainWindow):
     data_viewer
         View raw holographic data
     
+    fourier_plane_viewer
+        View data on the Fourier plane, including Fourier mask.
+    
     reconstructed_viewer
         View reconstructed holographic data
 
@@ -211,9 +212,11 @@ class App(ShampooWidget, QtGui.QMainWindow):
         Select the propagation distance(s) with which to reconstruct
         holograms.
     """
+
+    save_latest_hologram_signal = QtCore.pyqtSignal(object, name = 'save_latest_hologram_signal')
     connect_camera_signal = QtCore.pyqtSignal(object, name = 'connect_camera_signal')
     
-    def __init__(self,*, debug = False):
+    def __init__(self, *, debug = False):
         """
         Parameters
         ----------
@@ -222,6 +225,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         """
 
         self.data_viewer = None
+        self.fourier_plane_viewer = None
         self.reconstructed_viewer = None
         self.propagation_distance_selector = None
         self.controller = ShampooController()
@@ -242,7 +246,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         path = self.file_dialog.getSaveFileName(self, 'Save holographic data', filter = '*tif')
         if not path.endswith('.tif'):
             path = path + '.tif'
-        self.controller.save_latest_hologram(path)
+        self.save_latest_hologram_signal.emit(path)
     
     @QtCore.pyqtSlot()
     def connect_camera(self):
@@ -364,6 +368,9 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
         self.controller.fourier_plane_signal.connect(self.fourier_plane_viewer.display)
         self.controller.raw_data_signal.connect(self.data_viewer.display)
+
+        # Save and loads
+        self.save_latest_hologram_signal.connect(self.controller.save_latest_hologram)
 
         # Controller status signals
         self.connect_camera_signal.connect(self.controller.connect_camera)

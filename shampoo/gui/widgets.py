@@ -7,6 +7,7 @@ from pyqtgraph import QtCore, QtGui
 from ..reconstruction import Hologram, ReconstructedWave
 
 ICONS_FOLDER = os.path.join(os.path.dirname(__file__), 'icons')
+DEFAULT_PROPAGATION_DISTANCE = 0.03658
 
 #########################################################################################
 ###             TEMPLATE CLASSES
@@ -63,14 +64,6 @@ class ShampooStatusBar(QtGui.QStatusBar):
 class CameraFeatureDialog(ShampooWidget, QtGui.QDialog):
     """
     Modal dialog used to set camera features within SHAMPOO
-
-    Signals
-    -------
-    accepted
-
-    finished
-
-    rejected
     """
     camera_features_update_signal = QtCore.pyqtSignal(dict, name = 'camera_features_update_signal')
 
@@ -183,10 +176,7 @@ class FourierPlaneViewer(Viewer, QtGui.QWidget):
     Slots
     -----
     display
-        Display raw holographic data.
-    
-    clear
-        Clear view.
+        Display holographic data in the Fourier plane.
     """
 
     def __init__(self, parent, **kwargs):
@@ -335,7 +325,7 @@ class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
         self.step_value_widget = QtGui.QLineEdit(parent = self)
 
         # Initial values
-        self.start_value_widget.setText('0.0')
+        self.start_value_widget.setText(str(DEFAULT_PROPAGATION_DISTANCE))
         self.stop_value_widget.setText('0.0')
         self.step_value_widget.setText('0.0')
 
