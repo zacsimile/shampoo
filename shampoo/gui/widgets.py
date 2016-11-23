@@ -304,7 +304,7 @@ class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
         super(PropagationDistanceSelector, self).__init__(parent)
     
     @QtCore.pyqtSlot()
-    def _update_propagation_distance(self):
+    def update_propagation_distance(self):
         """ Emits the propagation_distance signal with the sorted propagation distance data parsed from the widget. """
 
         start, stop, step = [float(widget.text()) for widget in (self.start_value_widget, self.stop_value_widget, self.step_value_widget)]
@@ -360,6 +360,6 @@ class PropagationDistanceSelector(ShampooWidget, QtGui.QWidget):
         pass
     
     def _connect_signals(self):
-        self.start_value_widget.editingFinished.connect(self._update_propagation_distance)
-        self.stop_value_widget.editingFinished.connect(self._update_propagation_distance)
-        self.step_value_widget.editingFinished.connect(self._update_propagation_distance)
+        self.start_value_widget.editingFinished.connect(self.update_propagation_distance)
+        self.stop_value_widget.editingFinished.connect(self.update_propagation_distance)
+        self.step_value_widget.editingFinished.connect(self.update_propagation_distance)

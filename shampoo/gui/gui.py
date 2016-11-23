@@ -232,6 +232,9 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.debug = debug
 
         super(App, self).__init__()
+        
+        # Initial propagation distance
+        self.propagation_distance_selector.update_propagation_distance()
 
     @QtCore.pyqtSlot()
     def load_data(self):
