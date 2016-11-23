@@ -18,6 +18,13 @@ from skimage.io import imsave
 import sys
 from .widgets import (ShampooWidget, DataViewer, FourierPlaneViewer, ReconstructedHologramViewer, 
                       PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
+                    
+# Try importing optional dependency PyFFTW for Fourier transforms. If the import
+# fails, import scipy's FFT module instead
+try:
+    from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
+except ImportError:
+    from scipy.fftpack import fft2, ifft2
 
 def run(*, debug = False):   
     app = QtGui.QApplication(sys.argv)
@@ -84,20 +91,36 @@ class ShampooController(QtCore.QObject):
 
     def __init__(self, **kwargs):
         super(ShampooController, self).__init__(**kwargs)
-        self.reconstructed_queue = ProcessSafeQueue()
         self.propagation_distance = list()
         
         self.camera = None
         self.camera_connected_signal.emit(False)
 
         # Wire up reactors
+        self.reactors = list()
+
+        # Hologram reconstruction and display
         def display_callback(item):
             self.reconstructed_hologram_signal.emit(item)
             self.reconstruction_complete_signal.emit('Reconstruction complete') 
         
+        self.reconstructed_queue = ProcessSafeQueue()
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
-        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = display_callback)
-        self.reconstruction_reactor.start(), self.display_reactor.start()
+        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, function = np.real, callback = display_callback)
+        self.reactors.append(self.reconstruction_reactor), self.reactors.append(self.display_reactor)
+
+        # Fourier plane computation and display
+        def fourier_plane_display_callback(item):
+            self.fourier_plane_signal.emit(item)
+            # self.fourier_mask_signal.emit(item)
+        
+        self.fourier_plane_queue = ProcessSafeQueue()
+        self.fourier_plane_reactor = ProcessReactor(function = fft2, output_queue = self.fourier_plane_queue)
+        self.fourier_display_reactor = Reactor(input_queue = self.fourier_plane_queue, callback = fourier_plane_display_callback)
+        self.reactors.append(self.fourier_plane_reactor), self.reactors.append(self.fourier_display_reactor)
+
+        for reactor in self.reactors:
+            reactor.start()
 
         # Private attributes
         self._latest_hologram = None
@@ -124,7 +147,9 @@ class ShampooController(QtCore.QObject):
             data = Hologram(data)
         self._latest_hologram = data
         self.raw_data_signal.emit(data)
+
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
+        self.fourier_plane_reactor.send_item( data.hologram )
         self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
     
     @QtCore.pyqtSlot(object)
@@ -190,8 +215,8 @@ class ShampooController(QtCore.QObject):
     
     def stop(self):
         """ Stop all reactors. """
-        self.display_reactor.stop()
-        self.reconstruction_reactor.stop()
+        for reactor in self.reactors:
+            reactor.stop()
 
 class App(ShampooWidget, QtGui.QMainWindow):
     """
@@ -232,7 +257,7 @@ class App(ShampooWidget, QtGui.QMainWindow):
         self.debug = debug
 
         super(App, self).__init__()
-        
+
         # Initial propagation distance
         self.propagation_distance_selector.update_propagation_distance()
 

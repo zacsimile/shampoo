@@ -185,8 +185,9 @@ class FourierPlaneViewer(Viewer, QtGui.QWidget):
         ----------
         parent : QObject
         """
-        super(FourierPlaneViewer, self).__init__(parent = parent, **kwargs)
         self.viewer = None
+        self.latest_data = None
+        super(FourierPlaneViewer, self).__init__(parent = parent, **kwargs)
     
     @QtCore.pyqtSlot(object)
     def display(self, item):
@@ -197,10 +198,9 @@ class FourierPlaneViewer(Viewer, QtGui.QWidget):
         ----------
         item : ndarray
         """
-        # FourierPlaneViewer might be hidden most of the time. No point in updating the image
-        # in this case
-        if self.isVisible():
-            self.viewer.setImage(item)
+        # Scale the image
+        self.latest_data = item
+        self.viewer.setImage(np.log(self.latest_data))
 
     def _init_ui(self):
         self.viewer = pg.ImageView(parent = self, name = 'Reconstructed amplitude')
