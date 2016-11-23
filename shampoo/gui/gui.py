@@ -13,7 +13,7 @@ import os.path
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
-from ..reconstruction import Hologram, ReconstructedWave
+from ..reconstruction import Hologram, ReconstructedWave, shift_peak
 from skimage.io import imsave
 import sys
 from .widgets import (ShampooWidget, DataViewer, FourierPlaneViewer, ReconstructedHologramViewer, 
@@ -31,6 +31,13 @@ def run(*, debug = False):
     app.setStyle(QtGui.QStyleFactory.create('cde'))
     gui = App(debug = debug)
     sys.exit(app.exec_())
+
+def _fourier_plane_of_hologram(item):
+    """
+    Function wrapper around fft2 that shifts the Fourier transform
+    item : Hologram
+    """
+    return shift_peak(fft2(item.hologram), (item.n/2, item.n/2))
 
 def _reconstruct_hologram(item):
     """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. 
@@ -115,7 +122,7 @@ class ShampooController(QtCore.QObject):
             # self.fourier_mask_signal.emit(item)
         
         self.fourier_plane_queue = ProcessSafeQueue()
-        self.fourier_plane_reactor = ProcessReactor(function = fft2, output_queue = self.fourier_plane_queue)
+        self.fourier_plane_reactor = ProcessReactor(function = _fourier_plane_of_hologram, output_queue = self.fourier_plane_queue)
         self.fourier_display_reactor = Reactor(input_queue = self.fourier_plane_queue, callback = fourier_plane_display_callback)
         self.reactors.append(self.fourier_plane_reactor), self.reactors.append(self.fourier_display_reactor)
 
@@ -149,7 +156,7 @@ class ShampooController(QtCore.QObject):
         self.raw_data_signal.emit(data)
 
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
-        self.fourier_plane_reactor.send_item( data.hologram )
+        self.fourier_plane_reactor.send_item(data)
         self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
     
     @QtCore.pyqtSlot(object)
