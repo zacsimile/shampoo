@@ -13,7 +13,8 @@ import os.path
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
-from ..reconstruction import Hologram, ReconstructedWave, shift_peak
+from ..reconstruction import Hologram, ReconstructedWave
+from ..fftutils import fftshift
 from skimage.io import imsave
 import sys
 from .widgets import (ShampooWidget, DataViewer, FourierPlaneViewer, ReconstructedHologramViewer, 
@@ -40,7 +41,7 @@ def _fourier_plane_of_hologram(item):
     Function wrapper around fft2 that shifts the Fourier transform
     item : Hologram
     """
-    return shift_peak(fft2(item.hologram), (item.n/2, item.n/2))
+    return fftshift(fft2(item.hologram), (item.n/2, item.n/2))
 
 def _reconstruct_hologram(item):
     """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. 
