@@ -26,7 +26,7 @@ try:
 except ImportError:
     from scipy.fftpack import fft2, ifft2
 
-def run(*, debug = False):   
+def run(debug = False):   
     app = QtGui.QApplication(sys.argv)
     app.setStyle(QtGui.QStyleFactory.create('cde'))
     gui = App(debug = debug)
