@@ -28,7 +28,7 @@ env:
         - ASTROPY_VERSION=stable
         - SETUP_CMD='test'
         - CONDA_DEPENDENCIES='scipy h5py scipy matplotlib scikit-image scikit-learn hdf5 fftw pyfftw'
-        - PIP_DEPENDENCIES='mst_clustering'
+        - PIP_DEPENDENCIES='mst_clustering pyqtgraph'
         - CONDA_CHANNELS='astropy-ci-extras astropy salilab conda-forge'
     matrix:
         # Make sure that egg_info works without dependencies
