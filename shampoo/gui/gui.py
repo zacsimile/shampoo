@@ -26,7 +26,10 @@ try:
 except ImportError:
     from scipy.fftpack import fft2, ifft2
 
-def run(debug = False):   
+def run(debug = False):
+    """
+    
+    """
     app = QtGui.QApplication(sys.argv)
     app.setStyle(QtGui.QStyleFactory.create('cde'))
     gui = App(debug = debug)
@@ -248,11 +251,11 @@ class App(ShampooWidget, QtGui.QMainWindow):
     save_latest_hologram_signal = QtCore.pyqtSignal(object, name = 'save_latest_hologram_signal')
     connect_camera_signal = QtCore.pyqtSignal(object, name = 'connect_camera_signal')
     
-    def __init__(self, *, debug = False):
+    def __init__(self, debug = False):
         """
         Parameters
         ----------
-        debug : keyword-only, bool, optional
+        debug : bool, optional
             If True, extra options are available as a debug tool. Default is False.
         """
 
