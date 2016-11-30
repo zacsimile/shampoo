@@ -49,29 +49,6 @@ class Reactor(object):
         Add an item to reactor, adding it to the input queue.
     is_alive
         Check whether the reactor is still running.
-
-    Example
-    -------
-    Simple callback:
-    >>> from __future__ import print_function
-    >>> test = Reactor(callback = print)
-    >>> test.send_item('foobar')
-
-    Chaining reactors:
-    >>> from __future__ import print_function
-    >>> #from Queue import Queue # Python 2
-    >>> from queue import Queue   # Python 3
-    >>>
-    >>> messages = Queue()
-    >>> results = Queue()
-    >>>
-    >>> def some_func_1(item): return item
-    >>> def some_func_2(item): return item
-    >>>
-    >>> reactor1 = Reactor(output_queue = messages, function = some_func_1, callback = print)
-    >>> reactor2 = Reactor(input_queue = messages, output_queue = results, function = some_func_2, callback = print)
-    >>> reactor1.start(), reactor2.start()
-    >>> reactor1.send_item('foobar')
     """
     def __init__(self, input_queue = None, output_queue = None, function = None, callback = None, **kwargs):
         """
