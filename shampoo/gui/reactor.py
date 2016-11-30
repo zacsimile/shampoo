@@ -136,25 +136,6 @@ class ProcessReactor(Reactor):
         Add an item to reactor, adding it to the input queue.
     is_alive
         Check whether the reactor is still running.
-
-    Examples
-    --------
-    Callbacks are unavailable for this subclass because typical callbacks (e.g. emitting Qt signals) must be done within
-    the main process. To implement a callback, chain a ProcessReactor and a Reactor:
-    >>> from __future__ import print_function
-    >>> from multiprocessing import Queue
-    >>>
-    >>> messages = Queue()
-    >>> results = Queue()
-    >>>
-    >>> def some_func(item): return item
-    >>> 
-    >>> # Apply some_func on items in a separate process, and print results
-    >>> # using a callback in a second reactor in the main process
-    >>> reactor = ProcessReactor(output_queue = messages, function = some_func)
-    >>> callback_reactor = Reactor(input_queue = messages, output_queue = results, callback = print)
-    >>> reactor.start(), callback_reactor.start()
-    >>> reactor.send_item('foobar')
     """
 
     def __init__(self, input_queue = None, function = None, output_queue = None, **kwargs):
