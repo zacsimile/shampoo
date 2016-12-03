@@ -1,11 +1,7 @@
 """
 Graphical User Interface to the SHAMPOO API.
-
-Usage
------
->>> from shampoo.gui import run
->>> run()
 """
+
 from .debug import DebugCamera
 from .camera import available_cameras, AlliedVisionCamera
 import numpy as np
