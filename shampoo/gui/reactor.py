@@ -7,6 +7,8 @@ Reactor
 
 ProcessReactor
 """
+from __future __ import absolute_import
+
 from multiprocessing import Process, Pipe
 from multiprocessing import Queue as ProcessSafeQueue
 import numpy as np

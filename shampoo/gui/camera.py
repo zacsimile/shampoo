@@ -7,6 +7,8 @@ Functions
 available_cameras
     Prints the available, connected cameras as well as a list of their features.
 """
+from __future __ import absolute_import
+
 from .allied_vision import Vimba
 from collections import namedtuple
 import numpy as np

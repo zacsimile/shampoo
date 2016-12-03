@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future __ import absolute_import
+
 from ctypes import *
 
 __all__ = ['VimbaVersion', 'VimbaInterfaceInfo', 'VimbaCameraInfo', 'VimbaFeatureInfo', 'VimbaFrame']

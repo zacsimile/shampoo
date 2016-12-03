@@ -7,6 +7,7 @@ available at https://github.com/morefigs/pymba.
 
 Any connection to an Allied Vision camera must go through a Vimba object.
 """
+from __future __ import absolute_import
 
 from .vimba import Vimba
 

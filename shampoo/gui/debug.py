@@ -1,7 +1,7 @@
 """
 Debug classes to ease development
 """
-
+from __future __ import absolute_import
 from .camera import AlliedVisionCamera
 import numpy as np
 from time import sleep

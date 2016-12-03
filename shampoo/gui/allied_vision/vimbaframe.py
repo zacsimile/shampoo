@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future __ import absolute_import
 
 import numpy as np
 from .vimbastructure import VimbaFrame as StructuralVimbaFrame

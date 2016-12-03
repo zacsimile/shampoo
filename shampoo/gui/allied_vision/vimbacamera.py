@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future __ import absolute_import
+
 from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion
 from .vimbaobject import VimbaObject
 from .vimbaexception import VimbaException

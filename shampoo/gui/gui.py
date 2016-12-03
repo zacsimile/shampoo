@@ -1,6 +1,7 @@
 """
 Graphical User Interface to the SHAMPOO API.
 """
+from __future __ import absolute_import
 
 from .debug import DebugCamera
 from .camera import available_cameras, AlliedVisionCamera
@@ -63,7 +64,7 @@ class ShampooController(QtCore.QObject):
         Emits holographic data whenever one is loaded into memory.
     
     camera_connected_signal
-        Emits True when a camera has been successfully connected, and False otherwise.
+        Emits True when a camera has been successfully connected, and False when disconnected.
     
     Slots
     -------

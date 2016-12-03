@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future __ import absolute_import
+
 from .vimbaobject import VimbaObject
 from .vimbaexception import VimbaException
 from ctypes import *
