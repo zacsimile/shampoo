@@ -1,3 +1,3 @@
-from __future __ import absolute_import
+from __future__ import absolute_import
 
 from .gui import run

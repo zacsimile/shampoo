@@ -1,4 +1,4 @@
-from __future __ import absolute_import
+from __future__ import absolute_import
 
 from multiprocessing import Queue
 import numpy as np

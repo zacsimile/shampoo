@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 from .vimbastructure import VimbaInterfaceInfo, VimbaCameraInfo, VimbaVersion, VimbaFeatureInfo, VimbaFrame
 from .vimbaexception import VimbaException
 from sys import platform as sys_plat

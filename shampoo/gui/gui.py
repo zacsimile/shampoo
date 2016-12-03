@@ -1,7 +1,7 @@
 """
 Graphical User Interface to the SHAMPOO API.
 """
-from __future __ import absolute_import
+from __future__ import absolute_import
 
 from .debug import DebugCamera
 from .camera import available_cameras, AlliedVisionCamera
