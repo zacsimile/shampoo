@@ -87,7 +87,7 @@ class Reactor(object):
         """ Start the event loop in a separate thread. """
         # Start of the reactor is in a separate method to allow control by subclasses.
         self._keep_running = True
-        self.worker = Thread(target = self._event_loop, daemon = False)
+        self.worker = Thread(target = self._event_loop)
         self.worker.start()
     
     def stop(self):
