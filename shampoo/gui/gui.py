@@ -14,7 +14,7 @@ from ..reconstruction import Hologram, ReconstructedWave
 from ..fftutils import fftshift
 from skimage.io import imsave
 import sys
-from .widgets import (ShampooWidget, DataViewer, FourierPlaneViewer, ReconstructedHologramViewer, 
+from .widgets import (FourierPlaneViewer, ReconstructedHologramViewer, 
                       PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
                     
 # Try importing optional dependency PyFFTW for Fourier transforms. If the import
@@ -36,9 +36,9 @@ def run(debug = False):
 def _fourier_plane_of_hologram(item):
     """
     Function wrapper around fft2 that shifts the Fourier transform
-    item : Hologram
+    item : ndarray, dtype complex
     """
-    return fftshift(fft2(item.hologram), (item.n/2, item.n/2))
+    return fftshift(fft2(item))
 
 def _reconstruct_hologram(item):
     """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. 
@@ -114,7 +114,7 @@ class ShampooController(QtCore.QObject):
         
         self.reconstructed_queue = ProcessSafeQueue()
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
-        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, function = np.real, callback = display_callback)
+        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = display_callback)
         self.reactors.append(self.reconstruction_reactor), self.reactors.append(self.display_reactor)
 
         # Fourier plane computation and display
@@ -122,10 +122,9 @@ class ShampooController(QtCore.QObject):
             self.fourier_plane_signal.emit(item)
             # self.fourier_mask_signal.emit(item)
         
-        self.fourier_plane_queue = ProcessSafeQueue()
-        self.fourier_plane_reactor = ProcessReactor(function = _fourier_plane_of_hologram, output_queue = self.fourier_plane_queue)
-        self.fourier_display_reactor = Reactor(input_queue = self.fourier_plane_queue, callback = fourier_plane_display_callback)
-        self.reactors.append(self.fourier_plane_reactor), self.reactors.append(self.fourier_display_reactor)
+        self.fourier_plane_queue = ThreadSafeQueue()
+        self.fourier_plane_reactor = Reactor(function = _fourier_plane_of_hologram, callback = fourier_plane_display_callback)#self.fourier_plane_signal.emit)
+        self.reactors.append(self.fourier_plane_reactor)
 
         for reactor in self.reactors:
             reactor.start()
@@ -153,11 +152,12 @@ class ShampooController(QtCore.QObject):
         """
         if not isinstance(data, Hologram):
             data = Hologram(data)
+        
         self._latest_hologram = data
-        self.raw_data_signal.emit(data)
+        self.raw_data_signal.emit(data.hologram)
 
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
-        self.fourier_plane_reactor.send_item(data)
+        self.fourier_plane_reactor.send_item(data.hologram)
         self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
     
     @QtCore.pyqtSlot(object)
@@ -226,7 +226,7 @@ class ShampooController(QtCore.QObject):
         for reactor in self.reactors:
             reactor.stop()
 
-class App(ShampooWidget, QtGui.QMainWindow):
+class App(QtGui.QMainWindow):
     """
     GUI shell to the ShampooController object.
 
@@ -256,23 +256,112 @@ class App(ShampooWidget, QtGui.QMainWindow):
         debug : bool, optional
             If True, extra options are available as a debug tool. Default is False.
         """
+        super(App, self).__init__()
 
-        self.data_viewer = None
-        self.fourier_plane_viewer = None
-        self.reconstructed_viewer = None
-        self.propagation_distance_selector = None
         self.controller = ShampooController()
         self.debug = debug
 
-        super(App, self).__init__()
+        self.data_viewer = pg.ImageView(parent = self)
+        self.fourier_plane_viewer = FourierPlaneViewer(parent = self)
+        self.reconstructed_viewer = ReconstructedHologramViewer(parent = self)
+        self.propagation_distance_selector = PropagationDistanceSelector(parent = self)
 
-        # Initial propagation distance
+        self.file_dialog = QtGui.QFileDialog(parent = self)
+        self.menubar = self.menuBar()
+
+        # Assemble menu from previously-defined actions
+        self.file_menu = self.menubar.addMenu('&File')
+        self.camera_menu = self.menubar.addMenu('&Camera')
+        self.view_menu = self.menubar.addMenu('&View')
+
+        # Assemble window
+        self.main_splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        self.right_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
+
+        self.right_splitter.addWidget(self.propagation_distance_selector)
+        self.right_splitter.addWidget(self.reconstructed_viewer)
+        self.main_splitter.addWidget(self.data_viewer)
+        self.main_splitter.addWidget(self.fourier_plane_viewer)
+        self.main_splitter.addWidget(self.right_splitter)
+
+        self.status_bar = ShampooStatusBar(parent = self)
+        self.setStatusBar(self.status_bar)
+        self.status_bar.update_status('Ready')
+
+        self.layout = QtGui.QVBoxLayout()
+        self.layout.addWidget(self.main_splitter)
+
+        self.central_widget = QtGui.QWidget()
+        self.central_widget.setLayout(self.layout)
+        self.setCentralWidget(self.central_widget)
+        
+        # Initial setup does not show the fourier plane
+        self.fourier_plane_viewer.setVisible(False)
+
+        self.setGeometry(500, 500, 800, 800)
+        self.setWindowTitle('SHAMPOO')
+        self._center_window()
+        self.showMaximized()
+
+        self.load_data_action = QtGui.QAction('&Load raw data', self)
+        self.load_data_action.triggered.connect(self.load_data)
+        self.file_menu.addAction(self.load_data_action)
+
+        self.save_data_action = QtGui.QAction('&Save raw data', self)
+        self.save_data_action.triggered.connect(self.save_raw_data)
+        self.file_menu.addAction(self.save_data_action)
+        self.save_data_action.setEnabled(False)
+
+        self.connect_camera_action = QtGui.QAction('&Connect a camera', self)
+        self.connect_camera_action.triggered.connect(self.connect_camera)
+        self.camera_menu.addAction(self.connect_camera_action)
+
+        self.camera_snapshot_action = QtGui.QAction('&Take camera snapshot', self)
+        self.camera_snapshot_action.triggered.connect(self.controller.send_snapshot_data)
+        self.camera_menu.addAction(self.camera_snapshot_action)
+        self.camera_snapshot_action.setEnabled(False)
+
+        self.camera_features_action = QtGui.QAction('&Change camera features', self)
+        self.camera_features_action.triggered.connect(self.change_camera_features)
+        self.camera_menu.addAction(self.camera_features_action)
+        self.camera_features_action.setEnabled(False)
+
+        self.view_fourier_plane_action = QtGui.QAction('&View Fourier plane', self)
+        self.view_fourier_plane_action.toggled.connect(self.fourier_plane_viewer.setVisible)
+        self.view_menu.addAction(self.view_fourier_plane_action)
+        self.view_fourier_plane_action.setCheckable(True)
+        self.view_fourier_plane_action.setChecked(False)
+
+        self.export_reconstructed_action = QtGui.QAction('&Export current reconstructed data (placeholder)', self)
+        self.file_menu.addAction(self.export_reconstructed_action)
+        self.export_reconstructed_action.setEnabled(False)
+
+        self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
+        self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
+        self.controller.fourier_plane_signal.connect(self.fourier_plane_viewer.display)
+        self.controller.raw_data_signal.connect(self.data_viewer.setImage)
+
+        # Save and loads
+        self.save_latest_hologram_signal.connect(self.controller.save_latest_hologram)
+
+        # Controller status signals
+        self.connect_camera_signal.connect(self.controller.connect_camera)
+        self.controller.reconstruction_in_progress_signal.connect(self.status_bar.update_status)
+        self.controller.reconstruction_complete_signal.connect(self.status_bar.update_status)
+
+        # What actions are available when a camera is made available
+        # These actions will become unavailable when a camera is disconnected.
+        self.controller.camera_connected_signal.connect(lambda x: self.status_bar.update_status('Camera connected'))
+        self.controller.camera_connected_signal.connect(self.camera_snapshot_action.setEnabled)
+        self.controller.camera_connected_signal.connect(self.camera_features_action.setEnabled)
+        self.controller.raw_data_signal.connect(lambda x: self.save_data_action.setEnabled(True))
+
         self.propagation_distance_selector.update_propagation_distance()
 
     @QtCore.pyqtSlot()
     def load_data(self):
         """ Load a hologram into memory and displays it. """
-        path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')
+        path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')[0]
         hologram = Hologram.from_tif(os.path.abspath(path))
         self.controller.send_data(data = hologram)
     
@@ -320,105 +409,6 @@ class App(ShampooWidget, QtGui.QMainWindow):
             self.controller.stop()
         else:
             event.ignore()
-
-    def _init_ui(self):
-        self.data_viewer = DataViewer(parent = self)
-        self.fourier_plane_viewer = FourierPlaneViewer(parent = self)
-        self.reconstructed_viewer = ReconstructedHologramViewer(parent = self)
-        self.propagation_distance_selector = PropagationDistanceSelector(parent = self)
-
-        self.file_dialog = QtGui.QFileDialog(parent = self)
-        self.menubar = self.menuBar()
-
-        # Assemble menu from previously-defined actions
-        self.file_menu = self.menubar.addMenu('&File')
-        self.camera_menu = self.menubar.addMenu('&Camera')
-        self.view_menu = self.menubar.addMenu('&View')
-
-        # Assemble window
-        self.main_splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
-        self.right_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
-
-        self.right_splitter.addWidget(self.propagation_distance_selector)
-        self.right_splitter.addWidget(self.reconstructed_viewer)
-        self.main_splitter.addWidget(self.data_viewer)
-        self.main_splitter.addWidget(self.fourier_plane_viewer)
-        self.main_splitter.addWidget(self.right_splitter)
-
-        self.status_bar = ShampooStatusBar(parent = self)
-        self.setStatusBar(self.status_bar)
-        self.status_bar.update_status('Ready')
-
-        self.layout = QtGui.QVBoxLayout()
-        self.layout.addWidget(self.main_splitter)
-
-        self.central_widget = QtGui.QWidget()
-        self.central_widget.setLayout(self.layout)
-        self.setCentralWidget(self.central_widget)
-        
-        # Initial setup does not show the fourier plane
-        self.fourier_plane_viewer.setVisible(False)
-
-        self.setGeometry(500, 500, 800, 800)
-        self.setWindowTitle('SHAMPOO')
-        self._center_window()
-        self.showMaximized()
-    
-    def _init_actions(self):
-        self.load_data_action = QtGui.QAction('&Load raw data', self)
-        self.load_data_action.triggered.connect(self.load_data)
-        self.file_menu.addAction(self.load_data_action)
-
-        self.save_data_action = QtGui.QAction('&Save raw data', self)
-        self.save_data_action.triggered.connect(self.save_raw_data)
-        self.file_menu.addAction(self.save_data_action)
-        self.save_data_action.setEnabled(False)
-
-        self.connect_camera_action = QtGui.QAction('&Connect a camera', self)
-        self.connect_camera_action.triggered.connect(self.connect_camera)
-        self.camera_menu.addAction(self.connect_camera_action)
-
-        self.camera_snapshot_action = QtGui.QAction('&Take camera snapshot', self)
-        self.camera_snapshot_action.triggered.connect(self.controller.send_snapshot_data)
-        self.camera_menu.addAction(self.camera_snapshot_action)
-        self.camera_snapshot_action.setEnabled(False)
-
-        self.camera_features_action = QtGui.QAction('&Change camera features', self)
-        self.camera_features_action.triggered.connect(self.change_camera_features)
-        self.camera_menu.addAction(self.camera_features_action)
-        self.camera_features_action.setEnabled(False)
-
-        self.view_fourier_plane_action = QtGui.QAction('&View Fourier plane', self)
-        self.view_fourier_plane_action.toggled.connect(self.fourier_plane_viewer.setVisible)
-        self.view_menu.addAction(self.view_fourier_plane_action)
-        self.view_fourier_plane_action.setCheckable(True)
-        self.view_fourier_plane_action.setChecked(False)
-
-        self.export_reconstructed_action = QtGui.QAction('&Export current reconstructed data (placeholder)', self)
-        self.file_menu.addAction(self.export_reconstructed_action)
-        self.export_reconstructed_action.setEnabled(False)
-
-    
-    def _connect_signals(self):
-        self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
-        self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
-        self.controller.fourier_plane_signal.connect(self.fourier_plane_viewer.display)
-        self.controller.raw_data_signal.connect(self.data_viewer.display)
-
-        # Save and loads
-        self.save_latest_hologram_signal.connect(self.controller.save_latest_hologram)
-
-        # Controller status signals
-        self.connect_camera_signal.connect(self.controller.connect_camera)
-        self.controller.reconstruction_in_progress_signal.connect(self.status_bar.update_status)
-        self.controller.reconstruction_complete_signal.connect(self.status_bar.update_status)
-
-        # What actions are available when a camera is made available
-        # These actions will become unavailable when a camera is disconnected.
-        self.controller.camera_connected_signal.connect(lambda x: self.status_bar.update_status('Camera connected'))
-        self.controller.camera_connected_signal.connect(self.camera_snapshot_action.setEnabled)
-        self.controller.camera_connected_signal.connect(self.camera_features_action.setEnabled)
-        self.controller.raw_data_signal.connect(lambda x: self.save_data_action.setEnabled(True))
     
     def _center_window(self):
         qr = self.frameGeometry()
