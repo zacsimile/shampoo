@@ -14,7 +14,7 @@ from ..reconstruction import Hologram, ReconstructedWave
 from ..fftutils import fftshift
 from skimage.io import imsave
 import sys
-from .widgets import (FourierPlaneViewer, ReconstructedHologramViewer, 
+from .widgets import (RawDataViewer, ReconstructedHologramViewer, 
                       PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
                     
 # Try importing optional dependency PyFFTW for Fourier transforms. If the import
@@ -32,13 +32,6 @@ def run(debug = False):
     app.setStyle(QtGui.QStyleFactory.create('cde'))
     gui = App(debug = debug)
     sys.exit(app.exec_())
-
-def _fourier_plane_of_hologram(item):
-    """
-    Function wrapper around fft2 that shifts the Fourier transform
-    item : ndarray, dtype complex
-    """
-    return fftshift(fft2(item))
 
 def _reconstruct_hologram(item):
     """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. 
@@ -88,9 +81,7 @@ class ShampooController(QtCore.QObject):
         Choose camera from a list of ID. Not implemented.
     """
     raw_data_signal = QtCore.pyqtSignal(object, name = 'raw_data_signal')
-    fourier_plane_signal = QtCore.pyqtSignal(object, name = 'fourier_plane_signal')
     reconstructed_hologram_signal = QtCore.pyqtSignal(object, name = 'reconstructed_hologram_signal')
-    fourier_mask_signal = QtCore.pyqtSignal(object, name = 'fourier_mask_signal')
 
     # Status signals
     reconstruction_in_progress_signal = QtCore.pyqtSignal(str, name = 'reconstruction_in_progress_signal')
@@ -116,15 +107,6 @@ class ShampooController(QtCore.QObject):
         self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
         self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = display_callback)
         self.reactors.append(self.reconstruction_reactor), self.reactors.append(self.display_reactor)
-
-        # Fourier plane computation and display
-        def fourier_plane_display_callback(item):
-            self.fourier_plane_signal.emit(item)
-            # self.fourier_mask_signal.emit(item)
-        
-        self.fourier_plane_queue = ThreadSafeQueue()
-        self.fourier_plane_reactor = Reactor(function = _fourier_plane_of_hologram, callback = fourier_plane_display_callback)#self.fourier_plane_signal.emit)
-        self.reactors.append(self.fourier_plane_reactor)
 
         for reactor in self.reactors:
             reactor.start()
@@ -154,10 +136,9 @@ class ShampooController(QtCore.QObject):
             data = Hologram(data)
         
         self._latest_hologram = data
-        self.raw_data_signal.emit(data.hologram)
+        self.raw_data_signal.emit(data)
 
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
-        self.fourier_plane_reactor.send_item(data.hologram)
         self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
     
     @QtCore.pyqtSlot(object)
@@ -233,10 +214,7 @@ class App(QtGui.QMainWindow):
     Widgets
     -------
     data_viewer
-        View raw holographic data
-    
-    fourier_plane_viewer
-        View data on the Fourier plane, including Fourier mask.
+        View raw holographic data and associated Fourier plane information
     
     reconstructed_viewer
         View reconstructed holographic data
@@ -261,8 +239,7 @@ class App(QtGui.QMainWindow):
         self.controller = ShampooController()
         self.debug = debug
 
-        self.data_viewer = pg.ImageView(parent = self)
-        self.fourier_plane_viewer = FourierPlaneViewer(parent = self)
+        self.data_viewer = RawDataViewer(parent = self)
         self.reconstructed_viewer = ReconstructedHologramViewer(parent = self)
         self.propagation_distance_selector = PropagationDistanceSelector(parent = self)
 
@@ -272,7 +249,6 @@ class App(QtGui.QMainWindow):
         # Assemble menu from previously-defined actions
         self.file_menu = self.menubar.addMenu('&File')
         self.camera_menu = self.menubar.addMenu('&Camera')
-        self.view_menu = self.menubar.addMenu('&View')
 
         # Assemble window
         self.main_splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
@@ -281,7 +257,6 @@ class App(QtGui.QMainWindow):
         self.right_splitter.addWidget(self.propagation_distance_selector)
         self.right_splitter.addWidget(self.reconstructed_viewer)
         self.main_splitter.addWidget(self.data_viewer)
-        self.main_splitter.addWidget(self.fourier_plane_viewer)
         self.main_splitter.addWidget(self.right_splitter)
 
         self.status_bar = ShampooStatusBar(parent = self)
@@ -294,9 +269,6 @@ class App(QtGui.QMainWindow):
         self.central_widget = QtGui.QWidget()
         self.central_widget.setLayout(self.layout)
         self.setCentralWidget(self.central_widget)
-        
-        # Initial setup does not show the fourier plane
-        self.fourier_plane_viewer.setVisible(False)
 
         self.setGeometry(500, 500, 800, 800)
         self.setWindowTitle('SHAMPOO')
@@ -326,20 +298,13 @@ class App(QtGui.QMainWindow):
         self.camera_menu.addAction(self.camera_features_action)
         self.camera_features_action.setEnabled(False)
 
-        self.view_fourier_plane_action = QtGui.QAction('&View Fourier plane', self)
-        self.view_fourier_plane_action.toggled.connect(self.fourier_plane_viewer.setVisible)
-        self.view_menu.addAction(self.view_fourier_plane_action)
-        self.view_fourier_plane_action.setCheckable(True)
-        self.view_fourier_plane_action.setChecked(False)
-
         self.export_reconstructed_action = QtGui.QAction('&Export current reconstructed data (placeholder)', self)
         self.file_menu.addAction(self.export_reconstructed_action)
         self.export_reconstructed_action.setEnabled(False)
 
         self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
-        self.controller.fourier_plane_signal.connect(self.fourier_plane_viewer.display)
-        self.controller.raw_data_signal.connect(self.data_viewer.setImage)
+        self.controller.raw_data_signal.connect(self.data_viewer.display)
 
         # Save and loads
         self.save_latest_hologram_signal.connect(self.controller.save_latest_hologram)

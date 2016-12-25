@@ -5,7 +5,16 @@ import numpy as np
 import os
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
+
 from ..reconstruction import Hologram, ReconstructedWave
+from ..fftutils import fftshift
+
+# Try importing optional dependency PyFFTW for Fourier transforms. If the import
+# fails, import scipy's FFT module instead
+try:
+    from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
+except ImportError:
+    from scipy.fftpack import fft2, ifft2
 
 ICONS_FOLDER = os.path.join(os.path.dirname(__file__), 'icons')
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
@@ -92,45 +101,43 @@ class CameraFeatureDialog(QtGui.QDialog):
     @QtCore.pyqtSlot()
     def reject(self):
         super(CameraFeatureDialog, self).reject()
-
-class FourierPlaneViewer(QtGui.QWidget):
+    
+class RawDataViewer(QtGui.QWidget):
     """
-    QWidget displaying the raw holograms, before reconstruction.
-
-    Slots
-    -----
-    display
-        Display holographic data in the Fourier plane.
+    QWidget displaying raw holograms, as well as related information
+    such as Fourier decomposition.
     """
+    def __init__(self, *args, **kwargs):
+        super(RawDataViewer, self).__init__(*args, **kwargs)
 
-    def __init__(self, parent, **kwargs):
-        """
-        Parameters
-        ----------
-        parent : QObject
-        """
-        self.latest_data = None
-        super(FourierPlaneViewer, self).__init__(parent = parent, **kwargs)
+        self.raw_data_viewer = pg.ImageView(parent = self, name = 'Raw data')
+        self.fourier_plane_viewer = pg.ImageView(parent = self, name = 'Fourier plane')
+        self.fourier_mask_viewer = pg.ImageView(parent = self, name = 'Fourier mask viewer')
 
-        self.viewer = pg.ImageView(parent = self, name = 'Reconstructed amplitude')
-        
-        layout = QtGui.QVBoxLayout()
-        layout.addWidget(QtGui.QLabel('Fourier plane', parent = self))
-        layout.addWidget(self.viewer)
+        tabs = QtGui.QTabWidget(parent = self)
+        tabs.addTab(self.raw_data_viewer, 'Raw hologram')
+        tabs.addTab(self.fourier_plane_viewer, 'Fourier plane')
+        tabs.addTab(self.fourier_mask_viewer, 'Fourier mask')
+
+        layout = QtGui.QHBoxLayout()
+        layout.addWidget(tabs)
         self.setLayout(layout)
     
     @QtCore.pyqtSlot(object)
-    def display(self, item):
+    def display(self, data):
         """
-        Displays a shampoo.Hologram or NumPy array.
+        Display raw hologram and associated Fourier plane information.
 
         Parameters
         ----------
-        item : ndarray, dtype complex
+        data : Hologram or ndarray
         """
-        # Scale the image
-        self.latest_data = item
-        self.viewer.setImage(np.log(np.abs(self.latest_data)))
+        if not isinstance(data, Hologram):
+            data = Hologram(data)
+        
+        self.raw_data_viewer.setImage(data.hologram)
+        self.fourier_plane_viewer.setImage(np.real(fftshift(fft2(data.hologram))))
+        #self.fourier_mask_viewer.setImage(data.fourier_mask)
 
 class ReconstructedHologramViewer(QtGui.QWidget):
     """
@@ -145,28 +152,23 @@ class ReconstructedHologramViewer(QtGui.QWidget):
         Clear view.
     """
 
-    def __init__(self, parent, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         Parameters
         ----------
         parent : QObject
         """
-        super(ReconstructedHologramViewer, self).__init__(parent = parent, **kwargs)
+        super(ReconstructedHologramViewer, self).__init__(*args, **kwargs)
 
         self.amplitude_viewer = pg.ImageView(parent = self, name = 'Reconstructed amplitude')
         self.phase_viewer = pg.ImageView(parent = self, name = 'Reconstructed phase')
 
-        amplitude_layout = QtGui.QVBoxLayout()
-        amplitude_layout.addWidget(QtGui.QLabel('Reconstructed amplitude', parent = self))
-        amplitude_layout.addWidget(self.amplitude_viewer)
-
-        phase_layout = QtGui.QVBoxLayout()
-        phase_layout.addWidget(QtGui.QLabel('Reconstructed phase', parent = self))
-        phase_layout.addWidget(self.phase_viewer)
+        self.tabs = QtGui.QTabWidget()
+        self.tabs.addTab(self.amplitude_viewer, 'Amplitude')
+        self.tabs.addTab(self.phase_viewer, 'Phase')
 
         self.layout = QtGui.QVBoxLayout()
-        self.layout.addLayout(amplitude_layout)
-        self.layout.addLayout(phase_layout)
+        self.layout.addWidget(self.tabs)
         self.setLayout(self.layout)
     
     @QtCore.pyqtSlot(object)
