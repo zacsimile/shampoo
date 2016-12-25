@@ -8,7 +8,7 @@ import numpy as np
 np.random.seed(RANDOM_SEED)
 
 
-def _example_hologram(dim=2048):
+def _example_hologram(dim=256):
     """
     Generate example hologram.
 

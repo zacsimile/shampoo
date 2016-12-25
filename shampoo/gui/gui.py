@@ -9,7 +9,7 @@ import numpy as np
 import os.path
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
-from .reactor import Reactor, ProcessReactor, ThreadSafeQueue, ProcessSafeQueue
+from .reactor import Reconstructor
 from ..reconstruction import Hologram, ReconstructedWave
 from ..fftutils import fftshift
 from skimage.io import imsave
@@ -32,17 +32,6 @@ def run(debug = False):
     app.setStyle(QtGui.QStyleFactory.create('cde'))
     gui = App(debug = debug)
     sys.exit(app.exec_())
-
-def _reconstruct_hologram(item):
-    """ Function wrapper to Hologram.reconstruct and Hologram.reconstruct_multithread. 
-    item : 2-tuple
-        (propagation_distance, hologram)
-    """
-    propagation_distance, hologram = item
-    if len(propagation_distance) == 1:
-        return (propagation_distance, hologram.reconstruct(propagation_distance = propagation_distance[0]))
-    else:
-        return (propagation_distance, hologram.reconstruct_multithread(propagation_distances = propagation_distance))
 
 class ShampooController(QtCore.QObject):
     """
@@ -95,21 +84,13 @@ class ShampooController(QtCore.QObject):
         self.camera = None
         self.camera_connected_signal.emit(False)
 
-        # Wire up reactors
-        self.reactors = list()
-
         # Hologram reconstruction and display
         def display_callback(item):
             self.reconstructed_hologram_signal.emit(item)
             self.reconstruction_complete_signal.emit('Reconstruction complete') 
         
-        self.reconstructed_queue = ProcessSafeQueue()
-        self.reconstruction_reactor = ProcessReactor(function = _reconstruct_hologram, output_queue = self.reconstructed_queue)
-        self.display_reactor = Reactor(input_queue = self.reconstructed_queue, callback = display_callback)
-        self.reactors.append(self.reconstruction_reactor), self.reactors.append(self.display_reactor)
-
-        for reactor in self.reactors:
-            reactor.start()
+        self.reconstruction_reactor = Reconstructor(callback = display_callback)
+        self.reconstruction_reactor.start()
 
         # Private attributes
         self._latest_hologram = None
@@ -204,8 +185,7 @@ class ShampooController(QtCore.QObject):
     
     def stop(self):
         """ Stop all reactors. """
-        for reactor in self.reactors:
-            reactor.stop()
+        self.reconstruction_reactor.stop()
 
 class App(QtGui.QMainWindow):
     """
