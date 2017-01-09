@@ -12,6 +12,7 @@ def test_reconstructor_startup():
     reactor = Reconstructor(callback = lambda x: None)
     reactor.start()
     assert reactor.is_alive()
+    reactor.stop()
 
 def test_reactor_start_and_stop():
     """ Tests whether the reactor can start, stop, and start again """
@@ -22,3 +23,4 @@ def test_reactor_start_and_stop():
     assert not reactor.is_alive()
     reactor.start()
     assert reactor.is_alive()
+    reactor.stop()
