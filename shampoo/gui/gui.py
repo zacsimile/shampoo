@@ -3,17 +3,19 @@ Graphical User Interface to the SHAMPOO API.
 """
 from __future__ import absolute_import
 
-from .debug import DebugCamera
 from .camera import available_cameras, AlliedVisionCamera
+from .debug import DebugCamera
+from ..fftutils import fftshift
+import functools
 import numpy as np
 import os.path
 from pyqtgraph import QtGui, QtCore
 import pyqtgraph as pg
 from .reactor import Reconstructor
 from ..reconstruction import Hologram, ReconstructedWave
-from ..fftutils import fftshift
 from skimage.io import imsave
 import sys
+import traceback
 from .widgets import (RawDataViewer, ReconstructedHologramViewer, 
                       PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
                     
@@ -23,6 +25,23 @@ try:
     from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
 except ImportError:
     from scipy.fftpack import fft2, ifft2
+
+def error_aware(message):
+    """
+    Wrap an instance method with a try/except.
+    Instance must have a signal called 'error_message_signal' which
+    will be emitted with the message upon error. 
+    """
+    def wrap(func):
+        @functools.wraps(func)
+        def aware_func(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except: 
+                exc = traceback.format_exc()
+                self.error_message_signal.emit(message + '\n \n \n' + exc)
+        return aware_func
+    return wrap
 
 def run(debug = False):
     """
@@ -77,6 +96,8 @@ class ShampooController(QtCore.QObject):
     reconstruction_complete_signal = QtCore.pyqtSignal(str, name = 'reconstruction_complete_signal')
     camera_connected_signal = QtCore.pyqtSignal(bool, name = 'camera_connected_signal')
 
+    error_message_signal = QtCore.pyqtSignal(str, name = 'error_message_signal')
+
     def __init__(self, **kwargs):
         super(ShampooController, self).__init__(**kwargs)
         self.propagation_distance = list()
@@ -122,6 +143,7 @@ class ShampooController(QtCore.QObject):
         self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
         self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
     
+    @error_aware('Latest hologram could not be saved.')
     @QtCore.pyqtSlot(object)
     def save_latest_hologram(self, path):
         """
@@ -148,6 +170,7 @@ class ShampooController(QtCore.QObject):
         if self._latest_hologram:
             self.send_data(self._latest_hologram)
     
+    @error_aware('Camera features could not be updated.')
     @QtCore.pyqtSlot(dict)
     def update_camera_features(self, feature_dict):
         """ 
@@ -163,6 +186,7 @@ class ShampooController(QtCore.QObject):
         for feature, value in feature_dict.items():
             setattr(self.camera, feature, value)
     
+    @error_aware('Camera could not be connected.')
     @QtCore.pyqtSlot(object)
     def connect_camera(self, ID):
         """ 
@@ -206,6 +230,8 @@ class App(QtGui.QMainWindow):
 
     save_latest_hologram_signal = QtCore.pyqtSignal(object, name = 'save_latest_hologram_signal')
     connect_camera_signal = QtCore.pyqtSignal(object, name = 'connect_camera_signal')
+
+    error_message_signal = QtCore.pyqtSignal(str, name = 'error_message_signal')
     
     def __init__(self, debug = False):
         """
@@ -242,6 +268,10 @@ class App(QtGui.QMainWindow):
         self.status_bar = ShampooStatusBar(parent = self)
         self.setStatusBar(self.status_bar)
         self.status_bar.update_status('Ready')
+
+        self.error_window = QtGui.QErrorMessage(parent = self)
+        self.error_message_signal.connect(self.error_window.showMessage)
+        self.controller.error_message_signal.connect(self.error_window.showMessage)
 
         self.layout = QtGui.QVBoxLayout()
         self.layout.addWidget(self.main_splitter)
@@ -303,6 +333,7 @@ class App(QtGui.QMainWindow):
 
         self.propagation_distance_selector.update_propagation_distance()
 
+    @error_aware('Data could not be loaded.')
     @QtCore.pyqtSlot()
     def load_data(self):
         """ Load a hologram into memory and displays it. """
@@ -310,6 +341,7 @@ class App(QtGui.QMainWindow):
         hologram = Hologram.from_tif(os.path.abspath(path))
         self.controller.send_data(data = hologram)
     
+    @error_aware('Raw data could not be saved.')
     @QtCore.pyqtSlot()
     def save_raw_data(self):
         """ Save a raw hologram from the raw data screen """
@@ -318,6 +350,7 @@ class App(QtGui.QMainWindow):
             path = path + '.tif'
         self.save_latest_hologram_signal.emit(path)
     
+    @error_aware('Camera could not be connected')
     @QtCore.pyqtSlot()
     def connect_camera(self):
         """ Bring up a modal dialog to choose amongst available cameras. """
@@ -327,8 +360,8 @@ class App(QtGui.QMainWindow):
             cameras.append('debug')
         
         if not cameras:
-            error_window = QtGui.QErrorMessage(self)
-            return error_window.showMessage('No cameras available. ')
+            self.error_message_signal.emit('No cameras available.')
+            return
         
         camera_ID, ok = QtGui.QInputDialog.getItem(self, 'Select camera', 'List of cameras', 
                                                    cameras, 0, False)
@@ -336,14 +369,14 @@ class App(QtGui.QMainWindow):
         if ok and camera_ID:
             self.connect_camera_signal.emit(camera_ID)
     
+    @error_aware('Camera features could not be updated.')
     @QtCore.pyqtSlot()
     def change_camera_features(self):
         self.camera_features_dialog = CameraFeatureDialog(camera = self.controller.camera, parent = self)
         self.camera_features_dialog.camera_features_update_signal.connect(self.controller.update_camera_features)
         success = self.camera_features_dialog.exec_()
         if not success:
-            error_window = QtGui.QErrorMessage(self)
-            return error_window.showMessage('Camera features could not be updated.')
+            raise RuntimeError
     
     def closeEvent(self, event):
         reply = QtGui.QMessageBox.question(self, 'SHAMPOO', 'Are you sure you want to quit?', 

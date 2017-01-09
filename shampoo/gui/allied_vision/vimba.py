@@ -71,7 +71,6 @@ class Vimba(object):
     def __del__(self):
         self.shutdown()
         self._instance = None
-        super(Vimba, self).__del__()
 
     def _getInterfaceInfos(self):
         """

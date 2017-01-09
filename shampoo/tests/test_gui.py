@@ -6,6 +6,7 @@ from time import sleep
 from ..reconstruction import Hologram
 from .test_hologram import _example_hologram
 from ..gui.reactor import Reconstructor, ProcessSafeQueue
+from ..gui.gui import ShampooController
 
 def test_reconstructor_startup():
     """ Tests whether the event loop is running right after start(). """
@@ -24,3 +25,8 @@ def test_reactor_start_and_stop():
     reactor.start()
     assert reactor.is_alive()
     reactor.stop()
+
+def test_controller():
+    """ Test the heart of SHAMPOO's GUI """
+    controller = ShampooController()
+    controller.stop()
