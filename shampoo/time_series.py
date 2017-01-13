@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 This module implements storage of holographic time-series
 via an HDF5 file.
@@ -65,7 +66,7 @@ class TimeSeries(h5py.File):
     /t0000/wavelength1/intensity
     /t0000/wavelength1/phase
     /t0000/wavelength1/fourier_mask
-    …
+    ...
     /t0001/hologram
     /t0001/wavelength0/intensity
     /t0001/wavelength0/phase
