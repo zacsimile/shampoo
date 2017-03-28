@@ -30,6 +30,11 @@ def test_rebin_image():
     full_res = _example_hologram(dim=dim)
     assert (dim//2, dim//2) == rebin_image(full_res, 2).shape
 
+def test_nondefault_fourier_mask():
+    im = _example_hologram()
+    holo = Hologram(im)
+    mask = np.random.randint(0, 2, size = im.shape).astype(np.bool)
+    w = holo.reconstruct(0.5, fourier_mask = mask)
 
 def _gaussian2d(amplitude, width, centroid, dim):
     x, y = np.mgrid[0:dim, 0:dim]
@@ -84,8 +89,9 @@ def test_multiple_reconstructions():
     assert np.all(holograms[0] == holograms[1])
 
     # check that the cached reconstructions exist
-    for d in propagation_distances:
-        assert d in holo.reconstructions
+    # TODO: caching is temporarily disabled due to the possibility of user-defined masks
+    #for d in propagation_distances:
+    #    assert d in holo.reconstructions
 
 
 def test_nonsquare_hologram():

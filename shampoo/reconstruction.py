@@ -224,7 +224,7 @@ class Hologram(object):
 
     def reconstruct(self, propagation_distance,
                     plot_aberration_correction=False, plot_fourier_peak=False,
-                    cache=False):
+                    cache=False, fourier_mask=None):
         """
         Reconstruct the wave at ``propagation_distance``.
 
@@ -241,14 +241,23 @@ class Hologram(object):
             Plot the peak-centroiding visualization of the fourier transform
             of the hologram? Default is False.
         cache : bool
-            Cache reconstructions onto the hologram object? Default is False.
+            Cache reconstructions onto the hologram object? Default is False. NOTE: This argument
+            has not effect for now.
+        fourier_mask : array_like or None, optional
+            Fourier-domain mask. If None (default), a mask is determined from the position of the main
+            spectral peak.
 
         Returns
         -------
         reconstructed_wave : `~shampoo.reconstruction.ReconstructedWave`
             The reconstructed wave.
         """
+        #######
+        # TODO: different fourier masks might be in use; disabled cache until figured out
+        cache = False
+
         if cache:
+            
             # Cache dictionary is accessible by keys = propagation distances
             cache_key = propagation_distance
 
@@ -272,7 +281,8 @@ class Hologram(object):
 
     def _reconstruct(self, propagation_distance,
                      plot_aberration_correction=False,
-                     plot_fourier_peak=False):
+                     plot_fourier_peak=False,
+                     fourier_mask=None):
         """
         Reconstruct wave from hologram stored in file ``hologram_path`` at
         propagation distance ``propagation_distance``.
@@ -286,6 +296,8 @@ class Hologram(object):
         plot_fourier_peak : bool
             Plot the peak-centroiding visualization of the fourier transform
             of the hologram? Default is False.
+        fourier_mask : array_like or None, optional
+            Fourier-domain mask. If None (default), a mask is determined from the position of the main
 
         Returns
         -------
@@ -298,18 +310,21 @@ class Hologram(object):
         # Isolate the real image in Fourier space, find spectral peak
         ft_hologram = fft2(apodized_hologram)
 
-        # Create mask based on coords of spectral peak:
-        if self.rebin_factor != 1:
-            mask_radius = 150./self.rebin_factor
-        elif self.crop_fraction is not None and self.crop_fraction != 0:
-            mask_radius = 150./abs(np.log(self.crop_fraction)/np.log(2))
+        if fourier_mask is None:
+            # Create mask based on coords of spectral peak:
+            if self.rebin_factor != 1:
+                mask_radius = 150./self.rebin_factor
+            elif self.crop_fraction is not None and self.crop_fraction != 0:
+                mask_radius = 150./abs(np.log(self.crop_fraction)/np.log(2))
+            else:
+                mask_radius = 150.
+
+            x_peak, y_peak = self.fourier_peak_centroid(ft_hologram, mask_radius,
+                                                        plot=plot_fourier_peak)
+
+            mask = self.real_image_mask(x_peak, y_peak, mask_radius)
         else:
-            mask_radius = 150.
-
-        x_peak, y_peak = self.fourier_peak_centroid(ft_hologram, mask_radius,
-                                                    plot=plot_fourier_peak)
-
-        mask = self.real_image_mask(x_peak, y_peak, mask_radius)
+            mask = np.bool(fourier_mask)
 
         # Calculate Fourier transform of impulse response function
         G = self.fourier_trans_of_impulse_resp_func(propagation_distance)
