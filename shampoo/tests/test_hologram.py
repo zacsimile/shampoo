@@ -36,6 +36,8 @@ def test_nondefault_fourier_mask():
     mask = np.random.randint(0, 2, size = im.shape).astype(np.bool)
     w = holo.reconstruct(0.5, fourier_mask = mask)
 
+    assert np.allclose(w.fourier_mask, mask)
+
 def _gaussian2d(amplitude, width, centroid, dim):
     x, y = np.mgrid[0:dim, 0:dim]
     x_centroid, y_centroid = centroid

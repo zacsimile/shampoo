@@ -255,6 +255,7 @@ class Hologram(object):
         #######
         # TODO: different fourier masks might be in use; disabled cache until figured out
         cache = False
+        #######
 
         if cache:
             
@@ -267,17 +268,19 @@ class Hologram(object):
 
             # If this reconstruction is not cached, calculate it and cache it
             else:
-                reconstructed_wave = self._reconstruct(propagation_distance,
-                                                       plot_aberration_correction=plot_aberration_correction,
-                                                       plot_fourier_peak=plot_fourier_peak)
+                reconstructed_wave, mask = self._reconstruct(propagation_distance,
+                                                             plot_aberration_correction=plot_aberration_correction,
+                                                             plot_fourier_peak=plot_fourier_peak,
+                                                             fourier_mask=fourier_mask)
                 self.reconstructions[cache_key] = reconstructed_wave
 
         else:
-            reconstructed_wave = self._reconstruct(propagation_distance,
-                                                   plot_aberration_correction=plot_aberration_correction,
-                                                   plot_fourier_peak=plot_fourier_peak)
+            reconstructed_wave, mask = self._reconstruct(propagation_distance,
+                                                         plot_aberration_correction=plot_aberration_correction,
+                                                         plot_fourier_peak=plot_fourier_peak,
+                                                         fourier_mask=fourier_mask)
 
-        return ReconstructedWave(reconstructed_wave)
+        return ReconstructedWave(reconstructed_wave, fourier_mask = mask)
 
     def _reconstruct(self, propagation_distance,
                      plot_aberration_correction=False,
@@ -298,11 +301,14 @@ class Hologram(object):
             of the hologram? Default is False.
         fourier_mask : array_like or None, optional
             Fourier-domain mask. If None (default), a mask is determined from the position of the main
+            spectral peak. If array_like, the array will be cast to boolean.
 
         Returns
         -------
         reconstructed_wave : `~numpy.ndarray` (complex)
             Reconstructed wave from hologram
+        mask : `~numpy.ndarray` (bool)
+            Fourier-domain mask used in the reconstruction.
         """
         # Read input image
         apodized_hologram = self.apodize(self.hologram)
@@ -310,21 +316,23 @@ class Hologram(object):
         # Isolate the real image in Fourier space, find spectral peak
         ft_hologram = fft2(apodized_hologram)
 
+        # Determine location of spectral peak
+        if self.rebin_factor != 1:
+            mask_radius = 150./self.rebin_factor
+        elif self.crop_fraction is not None and self.crop_fraction != 0:
+            mask_radius = 150./abs(np.log(self.crop_fraction)/np.log(2))
+        else:
+            mask_radius = 150.
+
+        x_peak, y_peak = self.fourier_peak_centroid(ft_hologram, mask_radius,
+                                                    plot=plot_fourier_peak)
+        
+        # Either use a Fourier-domain mask based on coords of spectral peak,
+        # or a user-specified mask
         if fourier_mask is None:
-            # Create mask based on coords of spectral peak:
-            if self.rebin_factor != 1:
-                mask_radius = 150./self.rebin_factor
-            elif self.crop_fraction is not None and self.crop_fraction != 0:
-                mask_radius = 150./abs(np.log(self.crop_fraction)/np.log(2))
-            else:
-                mask_radius = 150.
-
-            x_peak, y_peak = self.fourier_peak_centroid(ft_hologram, mask_radius,
-                                                        plot=plot_fourier_peak)
-
             mask = self.real_image_mask(x_peak, y_peak, mask_radius)
         else:
-            mask = np.bool(fourier_mask)
+            mask = np.asarray(fourier_mask, dtype=np.bool)
 
         # Calculate Fourier transform of impulse response function
         G = self.fourier_trans_of_impulse_resp_func(propagation_distance)
@@ -342,7 +350,7 @@ class Hologram(object):
                            [-x_peak, -y_peak])
 
         reconstructed_wave = fftshift(ifft2(psi))
-        return reconstructed_wave
+        return reconstructed_wave, mask
 
     def get_digital_phase_mask(self, psi, plots=False):
         """
@@ -555,7 +563,7 @@ class Hologram(object):
             plt.show()
         return spectrum_centroid
 
-    def reconstruct_multithread(self, propagation_distances, threads=4):
+    def reconstruct_multithread(self, propagation_distances, threads=4, fourier_mask=None):
         """
         Reconstruct phase or intensity for multiple distances, for one hologram.
 
@@ -565,6 +573,9 @@ class Hologram(object):
             Propagation distances to reconstruct
         threads : int
             Number of threads to use via `~multiprocessing`
+        fourier_mask : array_like or None, optional
+            Fourier-domain mask. If None (default), a mask is determined from the position of the main
+            spectral peak. If array_like, the array will be cast to boolean.
 
         Returns
         -------
@@ -582,7 +593,8 @@ class Hologram(object):
 
         def _reconstruct(index):
             # Reconstruct image, add to data cube
-            wave = self.reconstruct(propagation_distances[index])
+            wave = self.reconstruct(propagation_distances[index], 
+                                    fourier_mask = fourier_mask)
             wave_cube[index, ...] = wave._reconstructed_wave
 
         # Make the Pool of workers
@@ -675,30 +687,13 @@ class ReconstructedWave(object):
     Container for reconstructed waves and their intensity and phase
     arrays.
     """
-    def __init__(self, reconstructed_wave):
+    def __init__(self, reconstructed_wave, fourier_mask):
         self._reconstructed_wave = reconstructed_wave
         self._intensity_image = None
         self._phase_image = None
+        self._fourier_mask = fourier_mask
         self.random_seed = RANDOM_SEED
     
-    @classmethod
-    def from_hdf5(cls, path):
-        """
-        Create an instance from a previously-created HDF5 file.
-
-        Parameters
-        ----------
-        path : str or path-like object
-            Location of the hdf5 file.
-        
-        Raises
-        ------
-        IOError
-            If file does not already exist.
-        """
-        with h5py.File(name = path, mode = 'r') as f:
-            raise NotImplementedError
-
     @property
     def intensity(self):
         """
@@ -727,23 +722,12 @@ class ReconstructedWave(object):
         """
         return self._reconstructed_wave
     
-    def save(self, path, **kwargs):
+    @property
+    def fourier_mask(self):
         """
-        Save the instance as an HDF5 file. Keyword arguments are passed to the h5py.File
-        constructor.
-
-        Parameters
-        ----------
-        path : str or path-like object
-            Location of the hdf5 file.
-        
-        Raises
-        ------
-        IOError
-            If file already exists.
+        `~numpy.ndarray` of the boolean Fourier-domain mask used during reconstruction.
         """
-        with h5py.File(name = path, mode = 'x', **kwargs) as f:
-            raise NotImplementedError
+        return self._fourier_mask
 
     def plot(self, phase=False, intensity=False, all=False,
              cmap=plt.cm.binary_r):
