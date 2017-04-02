@@ -82,7 +82,17 @@ class Reconstructor(object):
             return False
     
     def send_item(self, item):
-        """ Adds an item to the input queue. """
+        """ Adds an item to the input queue.
+        
+        Items should be a tuple of the following:
+        propagation_distance : sequence
+            Propagation distance(s)
+        hologram : array_like
+            Holographic data
+        fourier_mask : array_like or None
+            Fourier mask to use in the reconstruction. See Hologram.reconstruct()
+            for more details.
+        """
         self.input_queue.put(item)
     
     def _emission_loop(self):
@@ -103,10 +113,12 @@ def _reconstruction_loop(input_queue, output_queue):
         except Empty: 
             pass
         else:
-            propagation_distance, hologram = item
+            propagation_distance, hologram, mask = item
             if len(propagation_distance) == 1:
                 output_queue.put( (propagation_distance, 
-                                   hologram.reconstruct(propagation_distance = propagation_distance[0])) )
+                                   hologram.reconstruct(propagation_distance = propagation_distance[0], 
+                                                        fourier_mask = mask)) )
             else:
                 output_queue.put( (propagation_distance, 
-                                   hologram.reconstruct_multithread(propagation_distances = propagation_distance)) )
+                                   hologram.reconstruct_multithread(propagation_distances = propagation_distance, 
+                                                                    fourier_mask = mask)) )

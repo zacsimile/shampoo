@@ -7,14 +7,14 @@ import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
 
 from ..reconstruction import Hologram, ReconstructedWave
-from ..fftutils import fftshift
 
 # Try importing optional dependency PyFFTW for Fourier transforms. If the import
 # fails, import scipy's FFT module instead
 try:
     from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
+    from scipy.fftpack import fftshift
 except ImportError:
-    from scipy.fftpack import fft2, ifft2
+    from scipy.fftpack import fftshift, fft2, ifft2
 
 ICONS_FOLDER = os.path.join(os.path.dirname(__file__), 'icons')
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
@@ -136,7 +136,7 @@ class RawDataViewer(QtGui.QWidget):
             data = Hologram(data)
         
         self.raw_data_viewer.setImage(data.hologram)
-        self.fourier_plane_viewer.setImage(np.real(fftshift(fft2(data.hologram))))
+        self.fourier_plane_viewer.setImage(np.real(np.fft.fftshift(fft2(data.hologram))))
         #self.fourier_mask_viewer.setImage(data.fourier_mask)
 
 class ReconstructedHologramViewer(QtGui.QWidget):

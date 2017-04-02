@@ -9,4 +9,3 @@ if not _ASTROPY_SETUP_:
     from .store import *
     from .focus import *
     from .vis import *
-    from .fftutils import *

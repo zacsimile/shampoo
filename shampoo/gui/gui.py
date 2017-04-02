@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 from .camera import available_cameras, AlliedVisionCamera
 from .debug import DebugCamera
-from ..fftutils import fftshift
 import functools
 import numpy as np
 import os.path
@@ -101,6 +100,7 @@ class ShampooController(QtCore.QObject):
     def __init__(self, **kwargs):
         super(ShampooController, self).__init__(**kwargs)
         self.propagation_distance = list()
+        self.fourier_mask = None
         
         self.camera = None
         self.camera_connected_signal.emit(False)
@@ -131,7 +131,7 @@ class ShampooController(QtCore.QObject):
 
         Parameters
         ----------
-        tup : ndarray or Hologram object
+        data : ndarray or Hologram object
             Can be any type that can is accepted by the Hologram() constructor.
         """
         if not isinstance(data, Hologram):
@@ -140,7 +140,7 @@ class ShampooController(QtCore.QObject):
         self._latest_hologram = data
         self.raw_data_signal.emit(data)
 
-        self.reconstruction_reactor.send_item( (self.propagation_distance, data) )
+        self.reconstruction_reactor.send_item( (self.propagation_distance, data, self.fourier_mask) )
         self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
     
     @error_aware('Latest hologram could not be saved.')
@@ -155,6 +155,12 @@ class ShampooController(QtCore.QObject):
         """
         imsave(path, arr = self._latest_hologram.hologram, plugin = 'tifffile')
     
+    @error_aware('Fourier mask could not be set.')
+    @QtCore.pyqtSlot(object)
+    def set_fourier_mask(self, mask):
+        self.fourier_mask = mask
+    
+    @error_aware('Propagation distance(s) could not be updated.')
     @QtCore.pyqtSlot(object)
     def update_propagation_distance(self, item):
         """
