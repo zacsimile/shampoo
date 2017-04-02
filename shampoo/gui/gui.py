@@ -6,6 +6,7 @@ from __future__ import absolute_import
 from .camera import available_cameras, AlliedVisionCamera
 from .debug import DebugCamera
 import functools
+from .fourier_mask_dialog import FourierMaskDialog
 import numpy as np
 import os.path
 from pyqtgraph import QtGui, QtCore
@@ -13,6 +14,7 @@ import pyqtgraph as pg
 from .reactor import Reconstructor
 from ..reconstruction import Hologram, ReconstructedWave
 from skimage.io import imsave
+from skimage import img_as_bool
 import sys
 import traceback
 from .widgets import (RawDataViewer, ReconstructedHologramViewer, 
@@ -158,7 +160,10 @@ class ShampooController(QtCore.QObject):
     @error_aware('Fourier mask could not be set.')
     @QtCore.pyqtSlot(object)
     def set_fourier_mask(self, mask):
-        self.fourier_mask = mask
+        self.fourier_mask = img_as_bool(mask)
+        # Refresh screen
+        if self._latest_hologram:
+            self.send_data(self._latest_hologram)
     
     @error_aware('Propagation distance(s) could not be updated.')
     @QtCore.pyqtSlot(object)
@@ -300,6 +305,10 @@ class App(QtGui.QMainWindow):
         self.file_menu.addAction(self.save_data_action)
         self.save_data_action.setEnabled(False)
 
+        self.load_fourier_mask_action = QtGui.QAction('&Load Fourier mask', self)
+        self.load_fourier_mask_action.triggered.connect(self.load_fourier_mask)
+        self.file_menu.addAction(self.load_fourier_mask_action)
+
         self.connect_camera_action = QtGui.QAction('&Connect a camera', self)
         self.connect_camera_action.triggered.connect(self.connect_camera)
         self.camera_menu.addAction(self.connect_camera_action)
@@ -346,6 +355,16 @@ class App(QtGui.QMainWindow):
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')[0]
         hologram = Hologram.from_tif(os.path.abspath(path))
         self.controller.send_data(data = hologram)
+    
+    @error_aware('Fourier mask could not be loaded')
+    @QtCore.pyqtSlot()
+    def load_fourier_mask(self):
+        """ Load a user-defined reconstruction Fourier mask """
+        self.fourier_mask_dialog = FourierMaskDialog(initial_mask = self.controller.fourier_mask)
+        self.fourier_mask_dialog.fourier_mask_update_signal.connect(self.controller.set_fourier_mask)
+        success = self.fourier_mask_dialog.exec_()
+        if not success:
+            raise RuntimeError
     
     @error_aware('Raw data could not be saved.')
     @QtCore.pyqtSlot()

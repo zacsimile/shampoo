@@ -98,10 +98,6 @@ class CameraFeatureDialog(QtGui.QDialog):
         self.camera_features_update_signal.emit(feature_dict)
         super(CameraFeatureDialog, self).accept()
     
-    @QtCore.pyqtSlot()
-    def reject(self):
-        super(CameraFeatureDialog, self).reject()
-    
 class RawDataViewer(QtGui.QWidget):
     """
     QWidget displaying raw holograms, as well as related information
