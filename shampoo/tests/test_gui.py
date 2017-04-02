@@ -39,6 +39,8 @@ def test_reconstructor_handling_of_fourier_mask():
     # reconstruct without a mask
     reactor.send_item( ([0], hologram, None ))
 
+    reactor.stop()
+
 def test_controller():
     """ Test the heart of SHAMPOO's GUI """
     controller = ShampooController()

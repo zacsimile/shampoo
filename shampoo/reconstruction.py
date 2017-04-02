@@ -54,7 +54,7 @@ def rebin_image(a, binning_factor):
     new_shape = (a.shape[0]/binning_factor, a.shape[1]/binning_factor)
     sh = (new_shape[0], a.shape[0]//new_shape[0], new_shape[1],
           a.shape[1]//new_shape[1])
-    return a.reshape(sh).mean(-1).mean(1)
+    return a.reshape(map(int, sh)).mean(-1).mean(1)
 
 
 def fftshift(x, additional_shift=None, axes=None):
