@@ -112,12 +112,10 @@ class RawDataViewer(QtGui.QWidget):
 
         self.raw_data_viewer = pg.ImageView(parent = self, name = 'Raw data')
         self.fourier_plane_viewer = pg.ImageView(parent = self, name = 'Fourier plane')
-        self.fourier_mask_viewer = pg.ImageView(parent = self, name = 'Fourier mask viewer')
 
         tabs = QtGui.QTabWidget(parent = self)
         tabs.addTab(self.raw_data_viewer, 'Raw hologram')
         tabs.addTab(self.fourier_plane_viewer, 'Fourier plane')
-        tabs.addTab(self.fourier_mask_viewer, 'Fourier mask')
 
         layout = QtGui.QHBoxLayout()
         layout.addWidget(tabs)
@@ -136,8 +134,7 @@ class RawDataViewer(QtGui.QWidget):
             data = Hologram(data)
         
         self.raw_data_viewer.setImage(data.hologram)
-        self.fourier_plane_viewer.setImage(np.real(np.fft.fftshift(fft2(data.hologram))))
-        #self.fourier_mask_viewer.setImage(data.fourier_mask)
+        self.fourier_plane_viewer.setImage(np.real(fftshift(fft2(data.hologram))))
 
 class ReconstructedHologramViewer(QtGui.QWidget):
     """
@@ -162,10 +159,12 @@ class ReconstructedHologramViewer(QtGui.QWidget):
 
         self.amplitude_viewer = pg.ImageView(parent = self, name = 'Reconstructed amplitude')
         self.phase_viewer = pg.ImageView(parent = self, name = 'Reconstructed phase')
+        self.fourier_mask_viewer = pg.ImageView(parent = self, name = 'Reconstruction Fourier mask')
 
         self.tabs = QtGui.QTabWidget()
         self.tabs.addTab(self.amplitude_viewer, 'Amplitude')
         self.tabs.addTab(self.phase_viewer, 'Phase')
+        self.tabs.addTab(self.fourier_mask_viewer, 'Fourier mask')
 
         self.layout = QtGui.QVBoxLayout()
         self.layout.addWidget(self.tabs)
@@ -179,15 +178,15 @@ class ReconstructedHologramViewer(QtGui.QWidget):
         Parameters
         ----------
         data_tup : tuple of ndarrays,
-            Contains the propagation distance information, and an array of dtype complex or ReconstructedWave instance
+            Contains the propagation distance information, and a ReconstructedWave instance
         """
-        xvals, data = data_tup
+        xvals, reconstructed = data_tup
         xvals = np.array(xvals)
+        fourier_mask = reconstructed.fourier_mask
 
-        if not isinstance(data, ReconstructedWave):
-            data = ReconstructedWave(data)
-        self.amplitude_viewer.setImage(img = data.intensity, xvals = xvals)
-        self.phase_viewer.setImage(img = data.phase, xvals = xvals)
+        self.amplitude_viewer.setImage(img = reconstructed.intensity, xvals = xvals)
+        self.phase_viewer.setImage(img = reconstructed.phase, xvals = xvals)
+        self.fourier_mask_viewer.setImage(img = fourier_mask, xvals = xvals)
         
     @QtCore.pyqtSlot()
     def clear(self):

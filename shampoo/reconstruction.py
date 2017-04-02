@@ -579,10 +579,7 @@ class Hologram(object):
 
         Returns
         -------
-        wave_cube : `~numpy.ndarray`
-            Reconstructed waves for each propagation distance in a data cube of
-            dimensions (N, m, m) where N is the number of propagation distances
-            and m is the number of pixels on each axis of each reconstruction.
+        reconstructed : ReconstructedWave
         """
 
         n_z_slices = len(propagation_distances)
@@ -590,12 +587,14 @@ class Hologram(object):
         wave_shape = self.hologram.shape
         wave_cube = np.zeros((n_z_slices, wave_shape[0], wave_shape[1]),
                                dtype=np.complex128)
+        mask_cube = np.empty_like(wave_cube, dtype = np.bool)
 
         def _reconstruct(index):
             # Reconstruct image, add to data cube
             wave = self.reconstruct(propagation_distances[index], 
                                     fourier_mask = fourier_mask)
             wave_cube[index, ...] = wave._reconstructed_wave
+            mask_cube[index, ...] = wave.fourier_mask
 
         # Make the Pool of workers
         pool = ThreadPool(threads)
@@ -605,7 +604,7 @@ class Hologram(object):
         pool.close()
         pool.join()
 
-        return wave_cube
+        return ReconstructedWave(wave_cube, fourier_mask = mask_cube)
 
     def detect_specimens(self, reconstructed_wave, propagation_distance,
                          margin=100, kernel_radius=4.0, save_png_to_disk=None):
@@ -688,6 +687,14 @@ class ReconstructedWave(object):
     arrays.
     """
     def __init__(self, reconstructed_wave, fourier_mask):
+        """
+        Parameters
+        ----------
+        reconstructed_wave : array_like, complex
+            Reconstructed wave in 2- or 3- dimensions.
+        fourier_mask : array_like
+            Reconstruction Fourier mask, in 2- or 3- dimensions.
+        """
         self._reconstructed_wave = reconstructed_wave
         self._intensity_image = None
         self._phase_image = None

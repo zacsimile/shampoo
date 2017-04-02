@@ -9,6 +9,8 @@ ProcessReactor
 """
 from __future__ import absolute_import
 
+from ..reconstruction import ReconstructedWave
+
 from multiprocessing import Process, Pipe
 from multiprocessing import Queue as ProcessSafeQueue
 import numpy as np
@@ -115,10 +117,9 @@ def _reconstruction_loop(input_queue, output_queue):
         else:
             propagation_distance, hologram, mask = item
             if len(propagation_distance) == 1:
-                output_queue.put( (propagation_distance, 
-                                   hologram.reconstruct(propagation_distance = propagation_distance[0], 
-                                                        fourier_mask = mask)) )
+                reconstructed = hologram.reconstruct(propagation_distance = propagation_distance[0], 
+                                                     fourier_mask = mask)
             else:
-                output_queue.put( (propagation_distance, 
-                                   hologram.reconstruct_multithread(propagation_distances = propagation_distance, 
-                                                                    fourier_mask = mask)) )
+                reconstructed = hologram.reconstruct_multithread(propagation_distance = propagation_distance, 
+                                                                 fourier_mask = mask)
+            output_queue.put((propagation_distance, reconstructed))
