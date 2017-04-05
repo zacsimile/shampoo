@@ -131,11 +131,14 @@ class TimeSeries(h5py.File):
         out : ReconstructedWave object
         """
         gp = self._reconstruction_group(time_point, wavelength)
-        return ReconstructedWave(np.array(gp['intensity']) + 1j*np.array(gp['phase']))
+        return ReconstructedWave(np.array(gp['intensity']) + 1j*np.array(gp['phase']), 
+                                 fourier_mask = np.array(gp['fourier_mask']))
     
-    def reconstruct(self, time_point, wavelength, propagation_distance, **kwargs):
+    def reconstruct(self, time_point, wavelength, propagation_distance, 
+                    fourier_mask = None, **kwargs):
         """
-        Hologram reconstruction.
+        Hologram reconstruction. Keyword arguments are passed to the 
+        Hologram.reconstruct() method.
         
         Parameters
         ----------
@@ -155,13 +158,15 @@ class TimeSeries(h5py.File):
         
         # TODO: extend to multiple propagation distances
         hologram = self.hologram(time_point)
-        recon_wave = hologram.reconstruct(propagation_distance, **kwargs)
-
-        # TODO: store reconstruction parameters, e.g. fourier mask
+        recon_wave = hologram.reconstruct(propagation_distance, 
+                                          fourier_mask = fourier_mask,
+                                          **kwargs)
+        
         # TODO: overwrite dataset if already exists
         gp = self._reconstruction_group(time_point, wavelength)
         gp.create_dataset(name = 'intensity', data = recon_wave.intensity)
         gp.create_dataset(name = 'phase', data = recon_wave.phase)
+        gp.create_dataset(name = 'fourier_mask', data = recon_wave.fourier_mask)
         return recon_wave
     
     def add_hologram(self, hologram, time_point = 0):

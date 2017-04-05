@@ -4,11 +4,11 @@ from __future__ import (absolute_import, division, print_function,
 
 import numpy as np
 import os.path
-from ..reconstruction import Hologram, ReconstructedWave, random_seed
+from ..reconstruction import Hologram, ReconstructedWave, RANDOM_SEED
 import tempfile
 from ..time_series import TimeSeries
 
-np.random.seed(random_seed)
+np.random.seed(RANDOM_SEED)
 
 def _example_hologram(dim = 512):
     """ Generate example Hologram object """
