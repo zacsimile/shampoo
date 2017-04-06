@@ -698,7 +698,7 @@ class ReconstructedWave(object):
         self._reconstructed_wave = reconstructed_wave
         self._intensity_image = None
         self._phase_image = None
-        self._fourier_mask = fourier_mask
+        self._fourier_mask = np.asarray(fourier_mask, dtype = np.bool)
         self.random_seed = RANDOM_SEED
     
     @property

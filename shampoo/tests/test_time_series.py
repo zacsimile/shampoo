@@ -35,6 +35,7 @@ def test_time_series_storing_hologram_single_wavelength():
         retrieved = time_series.hologram(0)
         assert isinstance(retrieved, Hologram)
         assert np.allclose(hologram.hologram, retrieved.hologram)
+        assert time_series.wavelengths[0] == hologram.wavelength
 
 #def test_time_series_storing_hologram_three_wavelength():
 #    """ Test storage of holograms with three wavelengths """
@@ -52,15 +53,13 @@ def test_time_series_storing_hologram_single_wavelength():
 
 
 def test_time_series_reconstruct():
-    raise AssertionError('Skipping the test due to unknown bug')
+    #raise AssertionError('Skipping the test due to unknown bug')
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
-    hologram = _example_hologram(32)
-    mask = np.zeros_like(hologram.hologram, dtype = np.bool)
+    hologram = _example_hologram()
     with TimeSeries(filename = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
         ts_reconw = time_series.reconstruct(time_point = 0,
-                                            propagation_distance = 1,
-                                            fourier_mask = mask) 
+                                            propagation_distance = 1) 
         assert isinstance(ts_reconw, ReconstructedWave) 
         
         # Retrieve reconstructed wave from archive

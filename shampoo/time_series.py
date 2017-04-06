@@ -92,7 +92,7 @@ class TimeSeries(h5py.File):
             If the hologram is not compatible with the current TimeSeries,
             e.g. the wavelengths do not match.
         """
-        holo_wavelengths = tuple(np.atleast_1d(hologram.wavelength).astype(np.int))
+        holo_wavelengths = tuple(np.atleast_1d(hologram.wavelength))
 
         if len(self.time_points) == 0:
             # This is the first hologram. Reshape all dataset to fit the resolution
@@ -191,8 +191,8 @@ class TimeSeries(h5py.File):
         # TODO: store propagation distance(s)?
         time_index = self._time_index(time_point)
         gp = self.reconstructed_group
-        gp['reconstructed_wave'][:,:,:,time_index] = recon_wave._reconstructed_wave
-        gp['fourier_mask'][:,:,:,time_index] = recon_wave.fourier_mask
+        gp['reconstructed_wave'][:,:,:,time_index] = np.atleast_3d(recon_wave._reconstructed_wave)
+        gp['fourier_mask'][:,:,:,time_index] = np.atleast_3d(recon_wave.fourier_mask)
         return recon_wave
     
     def batch_reconstruct(self, propagation_distance, fourier_mask = None, **kwargs):
