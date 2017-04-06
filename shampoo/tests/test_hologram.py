@@ -71,8 +71,6 @@ def test_multiple_reconstructions():
     At commit cc730bd and earlier, the Hologram.apodize function modified
     the Hologram.hologram array every time Hologram.reconstruct was called.
     This tests that that should not happen anymore.
-
-    Also test that the caching machinery is working.
     """
 
     propagation_distances = [0.5, 0.8]
