@@ -22,22 +22,6 @@ class TimeSeries(h5py.File):
         Time-points in seconds
     wavelengths : tuple of floats
         Wavelengths in nm.
-    
-    Notes
-    -----
-    The underlying HDF5 file has the following structure:
-    /t0000/hologram
-    /t0000/wavelength0/intensity
-    /t0000/wavelength0/phase
-    /t0000/wavelength0/fourier_mask
-    /t0000/wavelength1/intensity
-    /t0000/wavelength1/phase
-    /t0000/wavelength1/fourier_mask
-    ...
-    /t0001/hologram
-    /t0001/wavelength0/intensity
-    /t0001/wavelength0/phase
-    /t0001/wavelength0/fourier_mask
     """
     _default_ckwargs = {'chunks': True, 
                         'compression':'lzf', 

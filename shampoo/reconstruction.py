@@ -12,6 +12,9 @@ are applied [2]_.
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+
+from collections import Iterable
+
 import warnings
 from multiprocessing.dummy import Pool as ThreadPool
 
@@ -166,11 +169,12 @@ class Hologram(object):
         Parameters
         ----------
         hologram : `~numpy.ndarray`
-            Input hologram
+            Input hologram. If the hologram was taken with multiple wavelengths,
+            the array should be a stack of single-wavelength hologram along axis 2.
         crop_fraction : float
             Fraction of the image to crop for analysis
-        wavelength : float [meters]
-            Wavelength of laser
+        wavelength : float [meters] or iterable
+            Wavelength of laser. Multiple wavelengths can be given as well.
         rebin_factor : int
             Rebin the image by factor ``rebin_factor``. Must be an even integer.
         dx : float [meters]
@@ -182,7 +186,19 @@ class Hologram(object):
         -----
         Non-square holograms will be cropped to a square with the dimensions of
         the smallest dimension.
+
+        Raises
+        ------
+        ValueError
+            Raised if the number of wavelengths does not match the input hologram 
+            array's third dimension
         """
+        wavelength = np.atleast_1d(wavelength)
+
+        if len(wavelength) != np.atleast_3d(hologram).shape[2]:
+            raise ValueError('Number of wavelengths {} does not match the dimensions of the  \
+                              input hologram {}'.format(len(wavelength), hologram.shape))
+
         self.crop_fraction = crop_fraction
         self.rebin_factor = rebin_factor
 
@@ -222,9 +238,7 @@ class Hologram(object):
         hologram = _load_hologram(hologram_path)
         return cls(hologram, **kwargs)
 
-    def reconstruct(self, propagation_distance,
-                    plot_aberration_correction=False, plot_fourier_peak=False,
-                    cache=False, fourier_mask=None):
+    def reconstruct(self, propagation_distance, fourier_mask=None, cache=True):
         """
         Reconstruct the wave at ``propagation_distance``.
 
@@ -235,17 +249,12 @@ class Hologram(object):
         ----------
         propagation_distance : float
             Propagation distance [m]
-        plot_aberration_correction : bool
-            Plot the abberation correction visualization? Default is False.
-        plot_fourier_peak : bool
-            Plot the peak-centroiding visualization of the fourier transform
-            of the hologram? Default is False.
-        cache : bool
-            Cache reconstructions onto the hologram object? Default is False. NOTE: This argument
-            has not effect for now.
         fourier_mask : array_like or None, optional
             Fourier-domain mask. If None (default), a mask is determined from the position of the main
             spectral peak.
+        cache : bool, optional
+            Cache reconstructions onto the hologram object? Default is False. NOTE: This argument
+            has not effect for now.
 
         Returns
         -------
@@ -269,23 +278,16 @@ class Hologram(object):
             # If this reconstruction is not cached, calculate it and cache it
             else:
                 reconstructed_wave, mask = self._reconstruct(propagation_distance,
-                                                             plot_aberration_correction=plot_aberration_correction,
-                                                             plot_fourier_peak=plot_fourier_peak,
                                                              fourier_mask=fourier_mask)
                 self.reconstructions[cache_key] = reconstructed_wave
 
         else:
             reconstructed_wave, mask = self._reconstruct(propagation_distance,
-                                                         plot_aberration_correction=plot_aberration_correction,
-                                                         plot_fourier_peak=plot_fourier_peak,
                                                          fourier_mask=fourier_mask)
 
         return ReconstructedWave(reconstructed_wave, fourier_mask = mask)
 
-    def _reconstruct(self, propagation_distance,
-                     plot_aberration_correction=False,
-                     plot_fourier_peak=False,
-                     fourier_mask=None):
+    def _reconstruct(self, propagation_distance, fourier_mask=None):
         """
         Reconstruct wave from hologram stored in file ``hologram_path`` at
         propagation distance ``propagation_distance``.
@@ -294,11 +296,6 @@ class Hologram(object):
         ----------
         propagation_distance : float
             Propagation distance [m]
-        plot_aberration_correction : bool
-            Plot the abberation correction visualization? Default is False.
-        plot_fourier_peak : bool
-            Plot the peak-centroiding visualization of the fourier transform
-            of the hologram? Default is False.
         fourier_mask : array_like or None, optional
             Fourier-domain mask. If None (default), a mask is determined from the position of the main
             spectral peak. If array_like, the array will be cast to boolean.
@@ -314,7 +311,8 @@ class Hologram(object):
         apodized_hologram = self.apodize(self.hologram)
 
         # Isolate the real image in Fourier space, find spectral peak
-        ft_hologram = fft2(apodized_hologram)
+        # Treat multiple wavelengths individually
+        ft_hologram = fft2(apodized_hologram, axes = (0, 1))
 
         # Determine location of spectral peak
         if self.rebin_factor != 1:
@@ -323,9 +321,9 @@ class Hologram(object):
             mask_radius = 150./abs(np.log(self.crop_fraction)/np.log(2))
         else:
             mask_radius = 150.
-
-        x_peak, y_peak = self.fourier_peak_centroid(ft_hologram, mask_radius,
-                                                    plot=plot_fourier_peak)
+        
+        # TODO: different for each wavelength?
+        x_peak, y_peak = self.fourier_peak_centroid(ft_hologram, mask_radius)
         
         # Either use a Fourier-domain mask based on coords of spectral peak,
         # or a user-specified mask
@@ -334,25 +332,30 @@ class Hologram(object):
         else:
             mask = np.asarray(fourier_mask, dtype=np.bool)
 
+        # Since in general, the hologram is taken
+        mask = np.atleast_3d(mask)
+
         # Calculate Fourier transform of impulse response function
         G = self.fourier_trans_of_impulse_resp_func(propagation_distance)
 
         # Now calculate digital phase mask. First center the spectral peak:
-        shifted_ft_hologram = fftshift(ft_hologram * mask, [-x_peak, -y_peak])
+        shifted_ft_hologram = fftshift(ft_hologram * mask, 
+                                       additional_shift=[-x_peak, -y_peak], 
+                                       axes = (0, 1))
 
         # Apodize the result
         psi = self.apodize(shifted_ft_hologram * G)
-        digital_phase_mask = self.get_digital_phase_mask(psi,
-                                                         plots=plot_aberration_correction)
+        digital_phase_mask = self.get_digital_phase_mask(psi)
 
         # Reconstruct the image
-        psi = G * fftshift(fft2(apodized_hologram * digital_phase_mask) * mask,
-                           [-x_peak, -y_peak])
+        psi = G * fftshift(fft2(apodized_hologram * digital_phase_mask, axes = (0,1)) * mask,
+                           additional_shift=[-x_peak, -y_peak],
+                           axes = (0,1))
 
-        reconstructed_wave = fftshift(ifft2(psi))
+        reconstructed_wave = fftshift(ifft2(psi, axes = (0,1)), axes = (0,1))
         return reconstructed_wave, mask
 
-    def get_digital_phase_mask(self, psi, plots=False):
+    def get_digital_phase_mask(self, psi):
         """
         Calculate the digital phase mask (i.e. reference wave), as in Colomb et
         al. 2006, Eqn. 26 [1]_.
@@ -367,8 +370,6 @@ class Hologram(object):
         psi : `~numpy.ndarray`
             The product of the Fourier transform of the hologram and the Fourier
             transform of impulse response function
-        plots : bool
-            Display plots after calculation if `True`
 
         Returns
         -------
@@ -450,9 +451,10 @@ class Hologram(object):
             x, y = self.mgrid
             n = len(x[0])
             tukey_window = tukey(n, alpha)
-            self.apodization_window_function = tukey_window[:, np.newaxis] * tukey_window
-
-        apodized_array = array * self.apodization_window_function
+            self.apodization_window_function = tukey_window[:, np.newaxis, np.newaxis] * tukey_window
+        
+        # In the most general case, array might represent a multi-wavelength hologram
+        apodized_array = np.atleast_3d(array) * self.apodization_window_function
         return apodized_array
 
     def fourier_trans_of_impulse_resp_func(self, propagation_distance):
@@ -680,6 +682,38 @@ def unwrap_phase(reconstructed_wave, seed=RANDOM_SEED):
     return skimage_unwrap_phase(2 * np.arctan(reconstructed_wave.imag /
                                               reconstructed_wave.real),
                                 seed=seed)
+
+class MultiHologram(Hologram):
+    """
+    Container for multi-wavelength holograms and methods to reconstruct them.
+    """
+    def __init__(self, wavelengths, *args, **kwargs):
+        """
+        Parameters
+        ----------
+        hologram : `~numpy.ndarray`
+            Input hologram
+        crop_fraction : float
+            Fraction of the image to crop for analysis
+        wavelengths : float [meters]
+            Wavelength of laser
+        rebin_factor : int
+            Rebin the image by factor ``rebin_factor``. Must be an even integer.
+        dx : float [meters]
+            Pixel width in x-direction (unbinned)
+        dy : float [meters]
+            Pixel width in y-direction (unbinned)
+
+        Notes
+        -----
+        Non-square holograms will be cropped to a square with the dimensions of
+        the smallest dimension.
+        """
+        super(Hologram, self).__init__(wavelength = 1, *args, **kwargs)
+        self.wavelength = None
+        self.wavelengths = tuple(wavelengths)
+    
+    def 
 
 class ReconstructedWave(object):
     """
