@@ -104,7 +104,6 @@ def fftshift(x, additional_shift=None, axes=None):
         y = np.take(y, mylist, k)
     return y
 
-
 def _load_hologram(hologram_path):
     """
     Load a hologram from path ``hologram_path`` using scikit-image and numpy.
@@ -222,7 +221,7 @@ class Hologram(object):
         self.reconstructions = dict()
         self.dx = dx*rebin_factor
         self.dy = dy*rebin_factor
-        self.mgrid = np.atleast_3d(np.mgrid[0:self.n, 0:self.n])
+        self.mgrid = np.mgrid[0:self.n, 0:self.n]
         self.random_seed = RANDOM_SEED
         self.apodization_window_function = None
 
@@ -336,27 +335,35 @@ class Hologram(object):
             mask = self.real_image_mask(x_peak, y_peak, mask_radius)
         else:
             mask = np.asarray(fourier_mask, dtype=np.bool)
-
-        # Since in general, the hologram is taken
         mask = np.atleast_3d(mask)
 
         # Calculate Fourier transform of impulse response function
         G = self.fourier_trans_of_impulse_resp_func(propagation_distance)
 
-        # Now calculate digital phase mask. First center the spectral peak:
-        shifted_ft_hologram = fftshift(ft_hologram * mask, 
-                                       additional_shift=[-x_peak, -y_peak], 
-                                       axes = (0, 1))
+        # Now calculate digital phase mask. First center the spectral peak for each channel
+        x_peak, y_peak = x_peak.reshape(-1), y_peak.reshape(-1)
+        shifted_ft_hologram = np.empty_like(ft_hologram)
+        for channel in range(shifted_ft_hologram.shape[2]):
+            shifted_ft_hologram[:,:,channel] = fftshift(ft_hologram[:,:,channel] * mask[:,:,channel],
+                                                        additional_shift=[-x_peak[channel], 
+                                                                          -y_peak[channel]],
+                                                        axes = (0,1))
 
         # Apodize the result
         psi = self.apodize(shifted_ft_hologram * G)
         digital_phase_mask = self.get_digital_phase_mask(psi)
 
         # Reconstruct the image
-        psi = G * fftshift(fft2(apodized_hologram * digital_phase_mask, axes = (0,1)) * mask,
-                           additional_shift=[-x_peak, -y_peak],
-                           axes = (0,1))
-
+        # fftshift is independent of channel
+        psi = np.empty_like(shifted_ft_hologram)
+        _ft = fft2(apodized_hologram * digital_phase_mask, axes = (0,1)) * mask
+        for channel in range(psi.shape[2]):
+            psi[:,:,channel] = fftshift(_ft[:,:,channel], 
+                                        additional_shift=[-x_peak[channel], 
+                                                          -y_peak[channel]],
+                                        axes = (0,1))
+        psi *= G
+        
         reconstructed_wave = fftshift(ifft2(psi, axes = (0,1)), axes = (0,1))
         return reconstructed_wave, mask
 
@@ -395,6 +402,8 @@ class Hologram(object):
         # Fit the smoothed phase image with a 2nd order polynomial surface with
         # mixed terms using least-squares.
         # This is iterated over all wavelength channels separately
+        # TODO: can this be done on the smooth_phase_image along axis 2 instead
+        # of direct iteration?
         channels = np.split(smooth_phase_image, smooth_phase_image.shape[2], axis = 2)
         fits = list()
 
@@ -496,8 +505,8 @@ class Hologram(object):
         """
         center_x, center_y = np.reshape(center_x, (1, 1, -1)), np.reshape(center_y, (1, 1, -1))
         x, y = self.mgrid
-        x, y = np.atleast_3d(x), np.atleast_3d(y)
-        mask = np.zeros_like(x, dtype = np.bool)
+        x, y = x[:,:,None], y[:,:,None]
+        mask = np.zeros_like(np.atleast_3d(self.hologram), dtype = np.bool)
         mask[(x-center_x)**2 + (y-center_y)**2 < radius**2] = True
 
         # exclude corners
@@ -520,9 +529,6 @@ class Hologram(object):
         margin_factor : int
             Fraction of the length of the Fourier-transform of the hologram
             to ignore near the edges, where spurious peaks occur there.
-        plot : bool
-            Plot the peak-centroiding visualization of the fourier transform
-            of the hologram? Default is False.
 
         Returns
         -------
@@ -533,25 +539,7 @@ class Hologram(object):
         margin = int(self.n*margin_factor)
         #abs_fourier_arr = np.abs(fourier_arr)[margin:-margin, margin:-margin]
         abs_fourier_arr = np.abs(fourier_arr)[margin:self.n//2, margin:-margin, :]
-        spectrum_centroid = _find_peak_centroid(abs_fourier_arr,
-                                                gaussian_width=10) + margin
-
-        if plot:
-            fig, ax = plt.subplots()
-            ax.imshow(np.log(np.abs(fourier_arr)), interpolation='nearest',
-                      origin='lower')
-            ax.plot(spectrum_centroid[1], spectrum_centroid[0], 'o')
-
-            if mask_radius is not None:
-                amp = mask_radius
-                theta = np.linspace(0, 2*np.pi, 100)
-                ax.plot(amp*np.cos(theta) + spectrum_centroid[1],
-                        amp*np.sin(theta) + spectrum_centroid[0],
-                        color='w', lw=2)
-                ax.axvline(20)
-                ax.axhline(20)
-            plt.show()
-        return spectrum_centroid
+        return _find_peak_centroid(abs_fourier_arr, gaussian_width=10) + margin
 
     def reconstruct_multithread(self, propagation_distances, threads=4, fourier_mask=None):
         """
@@ -596,57 +584,6 @@ class Hologram(object):
 
         return ReconstructedWave(wave_cube, fourier_mask = mask_cube)
 
-    def detect_specimens(self, reconstructed_wave, propagation_distance,
-                         margin=100, kernel_radius=4.0, save_png_to_disk=None):
-        cropped_img = reconstructed_wave.phase[margin:-margin, margin:-margin]
-        best_convolved_phase = convolve_fft(cropped_img,
-                                            MexicanHat2DKernel(kernel_radius))
-
-        best_convolved_phase_copy = best_convolved_phase.copy(order='C')
-
-        # Find positive peaks
-        blob_doh_kwargs = dict(threshold=0.00007,
-                               min_sigma=2,
-                               max_sigma=10)
-        blobs = blob_doh(best_convolved_phase_copy, **blob_doh_kwargs)
-
-        # Find negative peaks
-        negative_phase = -best_convolved_phase_copy
-        negative_phase += (np.median(best_convolved_phase_copy) -
-                           np.median(negative_phase))
-        negative_blobs = blob_doh(negative_phase, **blob_doh_kwargs)
-
-        all_blobs = []
-        for blob in blobs:
-            if blob.size > 0:
-                all_blobs.append(blob)
-
-        for neg_blob in negative_blobs:
-            if neg_blob.size > 0:
-                all_blobs.append(neg_blob)
-
-        if len(all_blobs) > 0:
-            all_blobs = np.vstack(all_blobs)
-
-        # If save pngs:
-        if save_png_to_disk is not None:
-            path = "{0}/{1:.4f}.png".format(save_png_to_disk,
-                                            propagation_distance)
-            save_scaled_image(reconstructed_wave.phase, path, margin, all_blobs)
-
-        # Blobs get returned in rows with [x, y, radius], so save each
-        # set of blobs with the propagation distance to record z
-
-        # correct blob positions for margin:
-        all_blobs = np.float64(all_blobs)
-        if len(all_blobs) > 0:
-            all_blobs[:, 0] += margin
-            all_blobs[:, 1] += margin
-            all_blobs[:, 2] = propagation_distance
-            return all_blobs
-        else:
-            return None
-
 
 def unwrap_phase(reconstructed_wave, seed=RANDOM_SEED):
     """
@@ -685,10 +622,10 @@ class ReconstructedWave(object):
         fourier_mask : array_like
             Reconstruction Fourier mask, in 2- or 3- dimensions.
         """
-        self._reconstructed_wave = np.squeeze(reconstructed_wave)
+        self.reconstructed_wave = np.squeeze(reconstructed_wave)
         self._intensity_image = None
         self._phase_image = None
-        self._fourier_mask = np.squeeze(np.asarray(fourier_mask, dtype = np.bool))
+        self.fourier_mask = np.squeeze(np.asarray(fourier_mask, dtype = np.bool))
         self.random_seed = RANDOM_SEED
     
     @property
@@ -697,7 +634,7 @@ class ReconstructedWave(object):
         `~numpy.ndarray` of the reconstructed intensity
         """
         if self._intensity_image is None:
-            self._intensity_image = np.abs(self._reconstructed_wave)
+            self._intensity_image = np.abs(self.reconstructed_wave)
         return self._intensity_image
 
     @property
@@ -708,68 +645,6 @@ class ReconstructedWave(object):
         Returns the unwrapped phase using `~skimage.restoration.unwrap_phase`.
         """
         if self._phase_image is None:
-            self._phase_image = unwrap_phase(self._reconstructed_wave)
+            self._phase_image = unwrap_phase(self.reconstructed_wave)
 
         return self._phase_image
-
-    @property
-    def reconstructed_wave(self):
-        """
-        `~numpy.ndarray` of the complex reconstructed wave
-        """
-        return self._reconstructed_wave
-    
-    @property
-    def fourier_mask(self):
-        """
-        `~numpy.ndarray` of the boolean Fourier-domain mask used during reconstruction.
-        """
-        return self._fourier_mask
-
-    def plot(self, phase=False, intensity=False, all=False,
-             cmap=plt.cm.binary_r):
-        """
-        Plot the reconstructed phase and/or intensity images.
-
-        Parameters
-        ----------
-        phase : bool
-            Toggle unwrapped phase plot. Default is False.
-        intensity : bool
-            Toggle intensity plot. Default is False.
-        all : bool
-            Toggle unwrapped phase plot and . Default is False.
-        cmap : `~matplotlib.colors.Colormap`
-            Matplotlib colormap for phase and intensity plots.
-        Returns
-        -------
-        fig : `~matplotlib.figure.Figure`
-            Figure
-        ax : `~matplotlib.axes.Axes`
-            Axis
-        """
-
-        all_kwargs = dict(origin='lower', interpolation='nearest', cmap=cmap)
-
-        phase_kwargs = all_kwargs.copy()
-        phase_kwargs.update(dict(vmin=np.percentile(self.phase, 0.1),
-                                 vmax=np.percentile(self.phase, 99.9)))
-
-        fig = None
-        if not all:
-            if phase and not intensity:
-                fig, ax = plt.subplots(figsize=(10,10))
-                ax.imshow(self.phase, **phase_kwargs)
-            elif intensity and not phase:
-                fig, ax = plt.subplots(figsize=(10,10))
-                ax.imshow(self.intensity, **all_kwargs)
-
-        if fig is None:
-            fig, ax = plt.subplots(1, 2, figsize=(18,8), sharex=True,
-                                   sharey=True)
-            ax[0].imshow(self.intensity, **all_kwargs)
-            ax[0].set(title='Intensity')
-            ax[1].imshow(self.phase, **phase_kwargs)
-            ax[1].set(title='Phase')
-
-        return fig, ax

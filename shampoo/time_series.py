@@ -175,7 +175,7 @@ class TimeSeries(h5py.File):
         # TODO: store propagation distance(s)?
         time_index = self._time_index(time_point)
         gp = self.reconstructed_group
-        gp['reconstructed_wave'][:,:,:,time_index] = np.atleast_3d(recon_wave._reconstructed_wave)
+        gp['reconstructed_wave'][:,:,:,time_index] = np.atleast_3d(recon_wave.reconstructed_wave)
         gp['fourier_mask'][:,:,:,time_index] = np.atleast_3d(recon_wave.fourier_mask)
         return recon_wave
     

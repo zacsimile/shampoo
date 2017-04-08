@@ -38,6 +38,13 @@ def test_nondefault_fourier_mask():
 
     assert np.allclose(np.squeeze(w.fourier_mask), np.squeeze(mask))
 
+def test_reconstruction_multiwavelength():
+    im = np.dstack([_example_hologram() for _ in range(3)])
+    holo = Hologram(im, wavelength = [450e-9, 550e-9, 650e-9])
+
+    w = holo.reconstruct(0.2)
+    assert im.shape == w.reconstructed_wave.shape
+
 def _gaussian2d(amplitude, width, centroid, dim):
     x, y = np.mgrid[0:dim, 0:dim]
     x_centroid, y_centroid = centroid

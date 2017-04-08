@@ -67,6 +67,6 @@ def test_time_series_reconstruct():
         
         assert isinstance(archived_reconw, ReconstructedWave)
 
-        assert np.allclose(ts_reconw._reconstructed_wave, 
-                           archived_reconw._reconstructed_wave)
+        assert np.allclose(ts_reconw.reconstructed_wave, 
+                           archived_reconw.reconstructed_wave)
                            

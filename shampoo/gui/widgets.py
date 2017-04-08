@@ -130,7 +130,8 @@ class RawDataViewer(QtGui.QWidget):
             data = Hologram(data)
         
         self.raw_data_viewer.setImage(data.hologram)
-        self.fourier_plane_viewer.setImage(np.real(fftshift(fft2(data.hologram))))
+        ft = fftshift(fft2(data.hologram, axes = (0, 1)), axes = (0,1))
+        self.fourier_plane_viewer.setImage(ft.real)
 
 class ReconstructedHologramViewer(QtGui.QWidget):
     """
