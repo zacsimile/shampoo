@@ -36,7 +36,7 @@ def test_nondefault_fourier_mask():
     mask = np.random.randint(0, 2, size = im.shape).astype(np.bool)
     w = holo.reconstruct(0.5, fourier_mask = mask)
 
-    assert np.allclose(w.fourier_mask, mask)
+    assert np.allclose(np.squeeze(w.fourier_mask), np.squeeze(mask))
 
 def _gaussian2d(amplitude, width, centroid, dim):
     x, y = np.mgrid[0:dim, 0:dim]
@@ -48,9 +48,17 @@ def _gaussian2d(amplitude, width, centroid, dim):
 def test_centroid():
     centroid = (265, 435)
     test_image = _gaussian2d(amplitude=10, width=5, centroid=centroid, dim=1024)
-    assert np.all(_find_peak_centroid(image=test_image) == centroid)
+    assert np.all(np.squeeze(_find_peak_centroid(image=test_image)) == centroid)
     assert np.all(test_image[centroid] == np.max(test_image))
 
+def test_centroid_multichannel():
+    """ Test _find_peak_centroid for inputs with multiple channels (wavelengths) """
+    centroids = (102, 304), (405, 312)
+    test_image = np.dstack([_gaussian2d(amplitude=20, width=4, centroid=centroids[0], dim=512),
+                            _gaussian2d(amplitude=10, width=7, centroid=centroids[1], dim=512)])
+    computed_centroids = np.squeeze(_find_peak_centroid(image=test_image))
+    assert np.all(computed_centroids[:,0] == centroids[0])
+    assert np.all(computed_centroids[:,1] == centroids[1])
 
 def test_crop_image():
     # Even number rows/cols
