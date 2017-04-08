@@ -203,8 +203,9 @@ class TimeSeries(h5py.File):
         # To simplify chunking, we force that no more than 3 wavelengths can be used.
         # The shape of the dataset will be adjusted when the first hologram will be added
         dset_kwargs = {'shape': (2048, 2048, 1,1),
-                       'maxshape': (None, None, 3, None),
-                       **self._default_ckwargs}
+                       'maxshape': (None, None, 3, None)}
+        dset_kwargs.update(self._default_ckwargs)           # Cannot combine this line with
+                                                            # previous line due to Py2
 
         # Data are stored as [x, y, wavelength, time]
         self.hologram_group.create_dataset('holograms', dtype = np.float, 
