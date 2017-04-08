@@ -603,10 +603,19 @@ def unwrap_phase(reconstructed_wave, seed=RANDOM_SEED):
     -------
     `~numpy.ndarray`
         Unwrapped phase image
-    """
-    return skimage_unwrap_phase(2 * np.arctan(reconstructed_wave.imag /
-                                              reconstructed_wave.real),
-                                seed=seed)
+    """   
+    phase = 2 * np.arctan(reconstructed_wave.imag / reconstructed_wave.real)
+
+    # No channel, no need for shenanigans
+    if phase.ndim < 3:
+        return skimage_unwrap_phase(phase, seed=seed)
+
+    # Each wavelength channel must be done separately
+    unwrapped = np.empty_like(reconstructed_wave)
+    unwrapped_channels = list()
+    for phase_channel in np.dsplit(phase, phase.shape[2]):
+        unwrapped_channels.append( skimage_unwrap_phase(phase_channel,seed=seed) )
+    return np.dstack(unwrapped_channels)
 
 class ReconstructedWave(object):
     """
