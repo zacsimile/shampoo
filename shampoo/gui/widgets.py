@@ -226,15 +226,15 @@ class PropagationDistanceSelector(QtGui.QWidget):
         # Final layout
         self.layout = QtGui.QVBoxLayout()
 
-        self.start_layout = QtGui.QVBoxLayout()
+        self.start_layout = QtGui.QHBoxLayout()
         self.start_layout.addWidget(QtGui.QLabel('Start (m)'))
         self.start_layout.addWidget(self.start_value_widget)
 
-        self.stop_layout = QtGui.QVBoxLayout()
+        self.stop_layout = QtGui.QHBoxLayout()
         self.stop_layout.addWidget(QtGui.QLabel('Stop (m)'))
         self.stop_layout.addWidget(self.stop_value_widget)
 
-        self.step_layout = QtGui.QVBoxLayout()
+        self.step_layout = QtGui.QHBoxLayout()
         self.step_layout.addWidget(QtGui.QLabel('Step (m)'))
         self.step_layout.addWidget(self.step_value_widget)
 

@@ -16,6 +16,8 @@ from ..reconstruction import Hologram, ReconstructedWave
 from skimage.io import imsave
 from skimage import img_as_bool
 import sys
+from .time_series_creator import TimeSeriesCreator
+from ..time_series import TimeSeries
 import traceback
 from .widgets import (RawDataViewer, ReconstructedHologramViewer, 
                       PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
@@ -101,6 +103,9 @@ class ShampooController(QtCore.QObject):
 
     def __init__(self, **kwargs):
         super(ShampooController, self).__init__(**kwargs)
+
+        self.time_series = None
+
         self.propagation_distance = list()
         self.fourier_mask = None
         
@@ -118,6 +123,22 @@ class ShampooController(QtCore.QObject):
         # Private attributes
         self._latest_hologram = None
     
+    @error_aware('Time series could not be loaded')
+    @QtCore.pyqtSlot(str)
+    def load_time_series(self, path):
+        """
+        Load TimeSeries object into the controller
+
+        Parameters
+        ----------
+        path : str
+            Path to the HDF5 file
+        """
+        if self.time_series is not None:
+            self.time_series.close()
+        
+        self.time_series = TimeSeries(path, mode = 'r+')
+
     @QtCore.pyqtSlot()
     def send_snapshot_data(self):
         """
@@ -271,8 +292,8 @@ class App(QtGui.QMainWindow):
         self.main_splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.right_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
-        self.right_splitter.addWidget(self.propagation_distance_selector)
         self.right_splitter.addWidget(self.reconstructed_viewer)
+        self.right_splitter.addWidget(self.propagation_distance_selector)
         self.main_splitter.addWidget(self.data_viewer)
         self.main_splitter.addWidget(self.right_splitter)
 
@@ -308,6 +329,10 @@ class App(QtGui.QMainWindow):
         self.load_fourier_mask_action = QtGui.QAction('&Load Fourier mask', self)
         self.load_fourier_mask_action.triggered.connect(self.load_fourier_mask)
         self.file_menu.addAction(self.load_fourier_mask_action)
+
+        self.time_series_creator_action = QtGui.QAction('&Create hologram time series', self)
+        self.time_series_creator_action.triggered.connect(self.launch_time_series_creator)
+        self.file_menu.addAction(self.time_series_creator_action)
 
         self.connect_camera_action = QtGui.QAction('&Connect a camera', self)
         self.connect_camera_action.triggered.connect(self.connect_camera)
@@ -360,11 +385,16 @@ class App(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def load_fourier_mask(self):
         """ Load a user-defined reconstruction Fourier mask """
-        self.fourier_mask_dialog = FourierMaskDialog(initial_mask = self.controller.fourier_mask)
-        self.fourier_mask_dialog.fourier_mask_update_signal.connect(self.controller.set_fourier_mask)
-        success = self.fourier_mask_dialog.exec_()
-        if not success:
-            raise RuntimeError
+        fourier_mask_dialog = FourierMaskDialog(initial_mask = self.controller.fourier_mask)
+        fourier_mask_dialog.fourier_mask_update_signal.connect(self.controller.set_fourier_mask)
+        success = fourier_mask_dialog.exec_()
+    
+    @error_aware('The hologram time series could not be created.')
+    @QtCore.pyqtSlot()
+    def launch_time_series_creator(self):
+        time_series_creator = TimeSeriesCreator(parent = self)
+        time_series_creator.time_series_path_signal.connect(self.controller.load_time_series)
+        success = time_series_creator.exec_()
     
     @error_aware('Raw data could not be saved.')
     @QtCore.pyqtSlot()
