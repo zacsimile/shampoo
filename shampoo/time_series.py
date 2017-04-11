@@ -6,10 +6,13 @@ via an HDF5 file.
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+
+import os
 from collections import Iterable
+
 import h5py
 import numpy as np
-import os
+
 from .reconstruction import Hologram, ReconstructedWave
 
 class TimeSeries(h5py.File):
@@ -76,18 +79,20 @@ class TimeSeries(h5py.File):
             If the hologram is not compatible with the current TimeSeries,
             e.g. the wavelengths do not match.
         """
-        holo_wavelengths = tuple(np.atleast_1d(hologram.wavelength))
+        holo_wavelengths = tuple(hologram.wavelength.reshape((-1)))
 
         if len(self.time_points) == 0:
             # This is the first hologram. Reshape all dataset to fit the resolution
             # and number of wavelengths
             self.attrs['wavelengths'] = holo_wavelengths
-            self._resize_datasets(size = hologram.hologram.shape + (len(self.wavelengths), 1))
+            holo_shape = np.atleast_3d(hologram.hologram).shape 
+            self._resize_datasets(size = holo_shape + (1,))
         
-        # The entire TimeSeries has the uniform wavelengths
-        if not holo_wavelengths == self.wavelengths:
-            raise ValueError('Wavelengths of this hologram ({}) do not match the TimeSeries \
-                              wavelengths ({})'.format(holo_wavelengths, self.wavelengths))
+        # The entire TimeSeries has uniform wavelengths
+        if not np.allclose(holo_wavelengths, self.wavelengths, atol = 1e-9):    # atol = 1 nm
+            raise ValueError('Wavelengths of this hologram ({}) do not match \
+                              the TimeSeries wavelengths ({})'.format(holo_wavelengths, 
+                                                                      self.wavelengths))
         
         # Find time-point index if it exists
         # Otherwise, insert the time_point at the end
@@ -118,12 +123,11 @@ class TimeSeries(h5py.File):
         -------
         out : Hologram
         """
-        # Use np.squeeze to remove dimensions of size 1, 
-        # i.e. axis 2 for a single wavelength
+        # Use np.seuqqze to remove dimensions of size 1
+        # e.g. axis 2 for single wavelength
         dset = self.hologram_group['holograms']
-        wavelength = self.wavelengths[0] if len(self.wavelengths) == 1 else self.wavelengths
         arr = np.array(dset[:,:,:,self._time_index(time_point)])
-        return Hologram(np.squeeze(arr), wavelength = wavelength, **kwargs)
+        return Hologram(np.squeeze(arr), wavelength = self.wavelengths, **kwargs)
     
     def reconstructed_wave(self, time_point):
         """
@@ -202,7 +206,7 @@ class TimeSeries(h5py.File):
         # But the structure is create with one wavelength at start.
         # To simplify chunking, we force that no more than 3 wavelengths can be used.
         # The shape of the dataset will be adjusted when the first hologram will be added
-        dset_kwargs = {'shape': (2048, 2048, 1,1),
+        dset_kwargs = {'shape':(2048, 2048, 1, 1),
                        'maxshape': (None, None, 3, None)}
         dset_kwargs.update(self._default_ckwargs)           # Cannot combine this line with
                                                             # previous line due to Py2

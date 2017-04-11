@@ -194,9 +194,9 @@ class Hologram(object):
             Raised if the number of wavelengths does not match the input hologram 
             array's third dimension
         """
-        wavelength = np.atleast_1d(wavelength)
+        wavelength = np.atleast_1d(wavelength).reshape((1,1,-1))
 
-        if len(wavelength) != np.atleast_3d(hologram).shape[2]:
+        if wavelength.size != np.atleast_3d(hologram).shape[2]:
             raise ValueError('Number of wavelengths {} does not match the dimensions of the  \
                               input hologram {}'.format(len(wavelength), hologram.shape))
 
@@ -216,7 +216,7 @@ class Hologram(object):
         # To generalize to multiple wavelengths,
         # wavelengths are stored with shape (1,1,N)
         self.n = self.hologram.shape[0]
-        self.wavelength = wavelength.reshape((1,1,-1))
+        self.wavelength = wavelength
         self.wavenumber = 2*np.pi/self.wavelength
         self.reconstructions = dict()
         self.dx = dx*rebin_factor
