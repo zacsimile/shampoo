@@ -37,23 +37,22 @@ def test_time_series_storing_hologram_single_wavelength():
         assert np.allclose(hologram.hologram, retrieved.hologram)
         assert time_series.wavelengths[0] == hologram.wavelength
 
-#def test_time_series_storing_hologram_three_wavelength():
-#    """ Test storage of holograms with three wavelengths """
-#    name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
-#    hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.float), 
-#                        wavelength = [1,2,3])
-#    with TimeSeries(filename = name, mode = 'w') as time_series:
-#        time_series.add_hologram(hologram, time_point = 0)
-#
-#        assert time_series.time_points == (0,)
-#        assert time_series.wavelengths == (1,2,3)
-#
-#        retrieved = time_series.hologram(0)
-#        assert np.allclose(hologram.hologram, retrieved.hologram)
+def test_time_series_storing_hologram_three_wavelength():
+    """ Test storage of holograms with three wavelengths """
+    name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
+    hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.float), 
+                        wavelength = [1,2,3])
+    with TimeSeries(filename = name, mode = 'w') as time_series:
+        time_series.add_hologram(hologram, time_point = 0)
+
+        assert time_series.time_points == (0,)
+        assert time_series.wavelengths == (1,2,3)
+
+        retrieved = time_series.hologram(0)
+        assert np.allclose(hologram.hologram, retrieved.hologram)
 
 
-def test_time_series_reconstruct():
-    #raise AssertionError('Skipping the test due to unknown bug')
+def test_time_series_reconstruct_single_wavelength():
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
     hologram = _example_hologram()
     with TimeSeries(filename = name, mode = 'w') as time_series:
