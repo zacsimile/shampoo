@@ -2,10 +2,12 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
 import os.path
-from ..reconstruction import Hologram, ReconstructedWave, RANDOM_SEED
 import tempfile
+
+import numpy as np
+
+from ..reconstruction import RANDOM_SEED, Hologram, ReconstructedWave
 from ..time_series import TimeSeries
 
 np.random.seed(RANDOM_SEED)
@@ -29,13 +31,29 @@ def test_time_series_storing_hologram_single_wavelength():
     hologram = _example_hologram()
     with TimeSeries(name = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
+        time_series.add_hologram(hologram, time_point = 1)
 
-        assert time_series.time_points == (0,)
+        assert time_series.time_points == (0,1)
 
         retrieved = time_series.hologram(0)
         assert isinstance(retrieved, Hologram)
         assert np.allclose(hologram.hologram, retrieved.hologram)
-        assert time_series.wavelengths[0] == hologram.wavelength
+        assert np.allclose(time_series.wavelengths, hologram.wavelength)
+
+def test_time_series_storing_hologram_three_wavelength():
+    """ Test storage of holograms with three wavelengths """
+    name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
+    hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.float), 
+                        wavelength = [1,2,3])
+    with TimeSeries(filename = name, mode = 'w') as time_series:
+        time_series.add_hologram(hologram, time_point = 0)
+        time_series.add_hologram(hologram, time_point = 1)
+        
+        assert np.allclose(time_series.time_points, (0,1))
+        assert np.allclose(time_series.wavelengths, (1,2,3))
+
+        assert np.allclose(hologram.hologram, time_series.hologram(0).hologram)
+        assert np.allclose(hologram.hologram, time_series.hologram(1).hologram)
 
 def test_time_series_storing_hologram_three_wavelength():
     """ Test storage of holograms with three wavelengths """
@@ -50,7 +68,6 @@ def test_time_series_storing_hologram_three_wavelength():
 
         retrieved = time_series.hologram(0)
         assert np.allclose(hologram.hologram, retrieved.hologram)
-
 
 def test_time_series_reconstruct_single_wavelength():
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
@@ -68,4 +85,3 @@ def test_time_series_reconstruct_single_wavelength():
 
         assert np.allclose(ts_reconw.reconstructed_wave, 
                            archived_reconw.reconstructed_wave)
-                           

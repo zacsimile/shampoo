@@ -6,10 +6,12 @@ via an HDF5 file.
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+
 from collections import Iterable
+
 import h5py
 import numpy as np
-import os
+
 from .reconstruction import Hologram, ReconstructedWave
 
 class TimeSeries(h5py.File):
@@ -59,7 +61,7 @@ class TimeSeries(h5py.File):
             If the hologram is not compatible with the current TimeSeries,
             e.g. the wavelengths do not match.
         """
-        holo_wavelengths = tuple(np.atleast_1d(hologram.wavelength))
+        holo_wavelengths = tuple(hologram.wavelength.reshape((-1)))
 
         if len(self.time_points) == 0:
             # This is the first hologram. Reshape all dataset to fit the resolution
@@ -116,12 +118,11 @@ class TimeSeries(h5py.File):
         -------
         out : Hologram
         """
-        # Use np.squeeze to remove dimensions of size 1, 
-        # i.e. axis 2 for a single wavelength
+        # Use np.seuqqze to remove dimensions of size 1
+        # e.g. axis 2 for single wavelength
         dset = self.hologram_group['holograms']
-        wavelength = self.wavelengths[0] if len(self.wavelengths) == 1 else self.wavelengths
         arr = np.array(dset[:,:,:,self._time_index(time_point)])
-        return Hologram(np.squeeze(arr), wavelength = wavelength, **kwargs)
+        return Hologram(np.squeeze(arr), wavelength = self.wavelengths, **kwargs)
     
     def reconstructed_wave(self, time_point):
         """
@@ -181,5 +182,5 @@ class TimeSeries(h5py.File):
         raise NotImplementedError
     
     def _time_index(self, time_point):
-        """ Determine the index of the time_point within the TimeSeries time_points"""
+        """ Determine the index of the time_point within the TimeSeries time_points""" 
         return np.argmin(np.abs(np.array(self.time_points) - time_point))
