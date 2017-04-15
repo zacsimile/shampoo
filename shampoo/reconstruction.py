@@ -196,7 +196,7 @@ class Hologram(object):
         """
         wavelength = np.atleast_1d(wavelength)
 
-        if len(wavelength) != np.atleast_3d(hologram).shape[2]:
+        if wavelength.size != np.atleast_3d(hologram).shape[2]:
             raise ValueError('Number of wavelengths {} does not match the dimensions of the  \
                               input hologram {}'.format(len(wavelength), hologram.shape))
 
@@ -241,7 +241,7 @@ class Hologram(object):
         hologram = _load_hologram(hologram_path)
         return cls(hologram, **kwargs)
 
-    def reconstruct(self, propagation_distance, fourier_mask=None, cache=True):
+    def reconstruct(self, propagation_distance, fourier_mask=None):
         """
         Reconstruct the wave at ``propagation_distance``.
 
@@ -255,61 +255,16 @@ class Hologram(object):
         fourier_mask : array_like or None, optional
             Fourier-domain mask. If None (default), a mask is determined from the position of the main
             spectral peak.
-        cache : bool, optional
-            Cache reconstructions onto the hologram object? Default is False. NOTE: This argument
-            has not effect for now.
 
         Returns
         -------
         reconstructed_wave : `~shampoo.reconstruction.ReconstructedWave`
             The reconstructed wave.
         """
-        #######
-        # TODO: different fourier masks might be in use; disabled cache until figured out
-        cache = False
-        #######
+        if isinstance(propagation_distance, Iterable):
+            return self.reconstruct_multithread(propagation_distances = propagation_distance,
+                                                fourier_mask = fourier_mask)
 
-        if cache:
-            
-            # Cache dictionary is accessible by keys = propagation distances
-            cache_key = propagation_distance
-
-            # If this reconstruction is cached, get it.
-            if cache_key in self.reconstructions:
-                reconstructed_wave = self.reconstructions[cache_key]
-
-            # If this reconstruction is not cached, calculate it and cache it
-            else:
-                reconstructed_wave, mask = self._reconstruct(propagation_distance,
-                                                             fourier_mask=fourier_mask)
-                self.reconstructions[cache_key] = reconstructed_wave
-
-        else:
-            reconstructed_wave, mask = self._reconstruct(propagation_distance,
-                                                         fourier_mask=fourier_mask)
-
-        return ReconstructedWave(reconstructed_wave, fourier_mask = mask)
-
-    def _reconstruct(self, propagation_distance, fourier_mask=None):
-        """
-        Reconstruct wave from hologram stored in file ``hologram_path`` at
-        propagation distance ``propagation_distance``.
-
-        Parameters
-        ----------
-        propagation_distance : float
-            Propagation distance [m]
-        fourier_mask : array_like or None, optional
-            Fourier-domain mask. If None (default), a mask is determined from the position of the main
-            spectral peak. If array_like, the array will be cast to boolean.
-
-        Returns
-        -------
-        reconstructed_wave : `~numpy.ndarray` (complex)
-            Reconstructed wave from hologram
-        mask : `~numpy.ndarray` (bool)
-            Fourier-domain mask used in the reconstruction.
-        """
         # Read input image
         apodized_hologram = self.apodize(self.hologram)
 
@@ -365,7 +320,7 @@ class Hologram(object):
         psi *= G
         
         reconstructed_wave = fftshift(ifft2(psi, axes = (0,1)), axes = (0,1))
-        return reconstructed_wave, mask
+        return ReconstructedWave(reconstructed_wave, fourier_mask = mask)
 
     def get_digital_phase_mask(self, psi):
         """
@@ -571,7 +526,7 @@ class Hologram(object):
             # Reconstruct image, add to data cube
             wave = self.reconstruct(propagation_distances[index], 
                                     fourier_mask = fourier_mask)
-            wave_cube[index, ...] = wave._reconstructed_wave
+            wave_cube[index, ...] = wave.reconstructed_wave
             mask_cube[index, ...] = wave.fourier_mask
 
         # Make the Pool of workers

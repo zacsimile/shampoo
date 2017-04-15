@@ -94,7 +94,7 @@ def test_multiple_reconstructions():
     holograms = []
 
     for d in propagation_distances:
-        w = holo.reconstruct(d, cache=True)
+        w = holo.reconstruct(d)
         holograms.append(holo.hologram)
 
     # check hologram doesn't get modified in place first time
@@ -102,11 +102,6 @@ def test_multiple_reconstructions():
 
     # check hologram doesn't get modified again
     assert np.all(holograms[0] == holograms[1])
-
-    # check that the cached reconstructions exist
-    # TODO: caching is temporarily disabled due to the possibility of user-defined masks
-    #for d in propagation_distances:
-    #    assert d in holo.reconstructions
 
 
 def test_nonsquare_hologram():

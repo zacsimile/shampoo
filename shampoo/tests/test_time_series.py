@@ -17,7 +17,7 @@ def _example_hologram(dim = 512):
 
 def test_time_series_metadata_defaults():
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
-    with TimeSeries(filename = name, mode = 'w') as time_series:
+    with TimeSeries(name = name, mode = 'w') as time_series:
 
         # Check default values when newly-created object
         assert time_series.time_points == tuple()
@@ -27,7 +27,7 @@ def test_time_series_storing_hologram_single_wavelength():
     """ Test storage of holograms with a single wavelength """
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
     hologram = _example_hologram()
-    with TimeSeries(filename = name, mode = 'w') as time_series:
+    with TimeSeries(name = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
 
         assert time_series.time_points == (0,)
@@ -42,11 +42,11 @@ def test_time_series_storing_hologram_three_wavelength():
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
     hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.float), 
                         wavelength = [1,2,3])
-    with TimeSeries(filename = name, mode = 'w') as time_series:
+    with TimeSeries(name = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
 
-        assert time_series.time_points == (0,)
-        assert time_series.wavelengths == (1,2,3)
+        assert np.allclose(time_series.time_points, (0,))
+        assert np.allclose(time_series.wavelengths, (1,2,3))
 
         retrieved = time_series.hologram(0)
         assert np.allclose(hologram.hologram, retrieved.hologram)
@@ -55,7 +55,7 @@ def test_time_series_storing_hologram_three_wavelength():
 def test_time_series_reconstruct_single_wavelength():
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
     hologram = _example_hologram()
-    with TimeSeries(filename = name, mode = 'w') as time_series:
+    with TimeSeries(name = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
         ts_reconw = time_series.reconstruct(time_point = 0,
                                             propagation_distance = 1) 

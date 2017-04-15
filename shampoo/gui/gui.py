@@ -3,25 +3,28 @@ Graphical User Interface to the SHAMPOO API.
 """
 from __future__ import absolute_import
 
-from .camera import available_cameras, AlliedVisionCamera
-from .debug import DebugCamera
 import functools
-from .fourier_mask_dialog import FourierMaskDialog
-import numpy as np
 import os.path
-from pyqtgraph import QtGui, QtCore
-import pyqtgraph as pg
-from .reactor import Reconstructor
-from ..reconstruction import Hologram, ReconstructedWave
-from skimage.io import imsave
-from skimage import img_as_bool
 import sys
-from .time_series_creator import TimeSeriesCreator
-from ..time_series import TimeSeries
 import traceback
-from .widgets import (RawDataViewer, ReconstructedHologramViewer, 
-                      PropagationDistanceSelector, CameraFeatureDialog, ShampooStatusBar)
-                    
+
+import numpy as np
+import pyqtgraph as pg
+from pyqtgraph import QtCore, QtGui
+from skimage import img_as_bool
+from skimage.io import imsave
+
+from ..reconstruction import Hologram, ReconstructedWave
+from ..time_series import TimeSeries
+from .camera import AlliedVisionCamera, available_cameras
+from .debug import DebugCamera
+from .fourier_mask_dialog import FourierMaskDialog
+from .reactor import Reconstructor
+from .recon_params_widget import ReconstructionParametersWidget
+from .time_series_creator import TimeSeriesCreator
+from .widgets import (CameraFeatureDialog, RawDataViewer, ReconstructedHologramViewer,
+                      ShampooStatusBar)
+
 # Try importing optional dependency PyFFTW for Fourier transforms. If the import
 # fails, import scipy's FFT module instead
 try:
@@ -52,8 +55,12 @@ def run(debug = False):
     """
     app = QtGui.QApplication(sys.argv)
     app.setStyle(QtGui.QStyleFactory.create('cde'))
-    gui = App(debug = debug)
-    sys.exit(app.exec_())
+    try:
+        gui = App(debug = debug)
+        sys.exit(app.exec_())
+    finally:
+        # Reactor might hang due to an exception
+        del app
 
 class ShampooController(QtCore.QObject):
     """
@@ -255,7 +262,7 @@ class App(QtGui.QMainWindow):
     reconstructed_viewer
         View reconstructed holographic data
 
-    propagation_distance_selector
+    reconstruction_parameters_widget
         Select the propagation distance(s) with which to reconstruct
         holograms.
     """
@@ -279,7 +286,7 @@ class App(QtGui.QMainWindow):
 
         self.data_viewer = RawDataViewer(parent = self)
         self.reconstructed_viewer = ReconstructedHologramViewer(parent = self)
-        self.propagation_distance_selector = PropagationDistanceSelector(parent = self)
+        self.reconstruction_parameters_widget = ReconstructionParametersWidget(parent = self)
 
         self.file_dialog = QtGui.QFileDialog(parent = self)
         self.menubar = self.menuBar()
@@ -293,7 +300,7 @@ class App(QtGui.QMainWindow):
         self.right_splitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
         self.right_splitter.addWidget(self.reconstructed_viewer)
-        self.right_splitter.addWidget(self.propagation_distance_selector)
+        self.right_splitter.addWidget(self.reconstruction_parameters_widget)
         self.main_splitter.addWidget(self.data_viewer)
         self.main_splitter.addWidget(self.right_splitter)
 
@@ -352,7 +359,7 @@ class App(QtGui.QMainWindow):
         self.file_menu.addAction(self.export_reconstructed_action)
         self.export_reconstructed_action.setEnabled(False)
 
-        self.propagation_distance_selector.propagation_distance_signal.connect(self.controller.update_propagation_distance)
+        self.reconstruction_parameters_widget.propagation_distance_signal.connect(self.controller.update_propagation_distance)
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
         self.controller.raw_data_signal.connect(self.data_viewer.display)
 
@@ -371,7 +378,7 @@ class App(QtGui.QMainWindow):
         self.controller.camera_connected_signal.connect(self.camera_features_action.setEnabled)
         self.controller.raw_data_signal.connect(lambda x: self.save_data_action.setEnabled(True))
 
-        self.propagation_distance_selector.update_propagation_distance()
+        self.reconstruction_parameters_widget.update_propagation_distance()
 
     @error_aware('Data could not be loaded.')
     @QtCore.pyqtSlot()

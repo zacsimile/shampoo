@@ -26,31 +26,14 @@ class TimeSeries(h5py.File):
     _default_ckwargs = {'chunks': True, 
                         'compression':'lzf', 
                         'shuffle': True}
-
-    def __init__(self, filename, mode = 'r', **kwargs):
-        """
-        Parameters
-        ----------
-        filename : string
-            Path to the HDF5 archive.
-        mode : string, optional
-            File-mode. Possible values in 
-            {'r', 'r+', 'w+', 'a'}
-        """
-        super(TimeSeries, self).__init__(name = filename, mode = mode, **kwargs)
-
-        # If this is the first time this TimeSeries is created, 
-        # a basic structure must be created
-        if 'time_points' not in self.attrs:
-            self._create_backbone()
     
     @property
     def time_points(self):
-        return tuple(self.attrs['time_points'])
+        return tuple(self.attrs.get('time_points', default = tuple()))
     
     @property
     def wavelengths(self):
-        return tuple(self.attrs['wavelengths'])
+        return tuple(self.attrs.get('wavelengths', default = tuple()))
 
     @property
     def hologram_group(self):
@@ -81,28 +64,40 @@ class TimeSeries(h5py.File):
         if len(self.time_points) == 0:
             # This is the first hologram. Reshape all dataset to fit the resolution
             # and number of wavelengths
+            # Extend to one time-point at axis 3
             self.attrs['wavelengths'] = holo_wavelengths
-            self._resize_datasets(size = hologram.hologram.shape + (len(self.wavelengths), 1))
+            self.attrs['time_points'] = (time_point,)
+            self.hologram_group.create_dataset('holograms', 
+                                               data = np.expand_dims(np.atleast_3d(hologram.hologram), axis = 3),
+                                               dtype = np.float, **self._default_ckwargs)
+            self.reconstructed_group.create_dataset('reconstructed_wave', 
+                                                    shape = self.hologram_group['holograms'].shape, 
+                                                    dtype = np.complex, **self._default_ckwargs)
+            self.reconstructed_group.create_dataset('fourier_mask', 
+                                                    shape = self.hologram_group['holograms'].shape,
+                                                    dtype = np.bool, **self._default_ckwargs)
         
         # The entire TimeSeries has the uniform wavelengths
-        if not holo_wavelengths == self.wavelengths:
+        if not np.allclose(holo_wavelengths, self.wavelengths):
             raise ValueError('Wavelengths of this hologram ({}) do not match the TimeSeries \
                               wavelengths ({})'.format(holo_wavelengths, self.wavelengths))
-        
+
         # Find time-point index if it exists
         # Otherwise, insert the time_point at the end
         # WARNING: this means that time_points are not sorted
-        # TODO: make sure holograms are always sorted along time-axis
+        # TODO: make sure holograms are always sorted along time-axis?
         if time_point in self.time_points:
             i = self._time_index(time_point)
         else:
             # Resize all datasets along time-axis and include new time-point
             self.attrs['time_points'] = self.time_points + (time_point,)
-            self._resize_datasets(size = len(self.attrs['time_points']), axis = 3)
+            self.hologram_group['holograms'].resize(size = len(self.attrs['time_points']), axis = 3)
+            self.reconstructed_group['reconstructed_wave'].resize(self.hologram_group['holograms'].shape)
+            self.reconstructed_group['fourier_mask'].resize(self.hologram_group['holograms'].shape)
+
             i = len(self.time_points) - 1
-        
-        gp = self.hologram_group
-        gp['holograms'][:,:,:,i] = np.atleast_3d(hologram.hologram)
+
+        self.hologram_group['holograms'][:,:,:,i] = np.atleast_3d(hologram.hologram)
     
     def hologram(self, time_point, **kwargs):
         """
@@ -149,9 +144,10 @@ class TimeSeries(h5py.File):
         return ReconstructedWave(np.squeeze(wave), fourier_mask = np.squeeze(mask))
     
     def reconstruct(self, time_point, propagation_distance, 
-                    fourier_mask = None):
+                    fourier_mask = None, **kwargs):
         """
-        Hologram reconstruction from Hologram.reconstruct().
+        Hologram reconstruction from Hologram.reconstruct(). Keyword arguments
+        are also passed to Hologram.reconstruct()
         
         Parameters
         ----------
@@ -186,31 +182,3 @@ class TimeSeries(h5py.File):
     def _time_index(self, time_point):
         """ Determine the index of the time_point within the TimeSeries time_points"""
         return np.argmin(np.abs(np.array(self.time_points) - time_point))
-
-    def _resize_datasets(self, size, axis = None):
-        """ Resize all datasets, for example when going from 1 to 3 wavelengths """
-        self.hologram_group['holograms'].resize(size, axis)
-        self.reconstructed_group['reconstructed_wave'].resize(size, axis)
-        self.reconstructed_group['fourier_mask'].resize(size, axis)
-
-    def _create_backbone(self):
-        """ Creates the necessary groups and datasets for a new TimeSeries """
-        self.attrs['time_points'] = list()
-        self.attrs['wavelengths'] = list()
-
-        # In general, TimeSeries represent 3-wavelength data
-        # But the structure is create with one wavelength at start.
-        # To simplify chunking, we force that no more than 3 wavelengths can be used.
-        # The shape of the dataset will be adjusted when the first hologram will be added
-        dset_kwargs = {'shape': (2048, 2048, 1,1),
-                       'maxshape': (None, None, 3, None)}
-        dset_kwargs.update(self._default_ckwargs)           # Cannot combine this line with
-                                                            # previous line due to Py2
-
-        # Data are stored as [x, y, wavelength, time]
-        self.hologram_group.create_dataset('holograms', dtype = np.float, 
-                                           **dset_kwargs)
-        self.reconstructed_group.create_dataset('reconstructed_wave', dtype = np.complex,
-                                                **dset_kwargs)
-        self.reconstructed_group.create_dataset('fourier_mask', dtype = np.bool, 
-                                                **dset_kwargs)

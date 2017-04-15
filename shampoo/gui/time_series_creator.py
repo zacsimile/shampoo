@@ -1,8 +1,5 @@
 from __future__ import absolute_import
 
-from collections import Iterable
-import numpy as np
-import pyqtgraph as pg
 from pyqtgraph import QtGui, QtCore
 
 from ..reconstruction import Hologram
@@ -75,20 +72,23 @@ class TimeSeriesCreator(QtGui.QDialog):
         reject_btn.clicked.connect(self.reject)
         reject_btn.setDefault(True)
 
-        # TODO: combine entire layout into a QGridLayout
+        hologram_btns = QtGui.QHBoxLayout()
+        hologram_btns.addWidget(file_search_btn)
+        hologram_btns.addWidget(clear_btn)
+
         wavelength_mode_layout = QtGui.QHBoxLayout()
         wavelength_mode_layout.addWidget(self.one_wavelength_mode_btn)
         wavelength_mode_layout.addWidget(self.three_wavelength_mode_btn)
 
         wavelength_layout = QtGui.QHBoxLayout()
-        wavelength_layout.addWidget(QtGui.QLabel('Wavelength(s): '))
+        wlabel = QtGui.QLabel('Wavelength(s):')
+        wlabel.setAlignment(QtCore.Qt.AlignCenter)
+        wavelength_layout.addWidget(wlabel)
         wavelength_layout.addWidget(self.wavelength1_widget)
         wavelength_layout.addWidget(self.wavelength2_widget)
         wavelength_layout.addWidget(self.wavelength3_widget)
 
         btns = QtGui.QHBoxLayout()
-        btns.addWidget(file_search_btn)
-        btns.addWidget(clear_btn)
         btns.addWidget(accept_btn)
         btns.addWidget(reject_btn)
 
@@ -97,6 +97,7 @@ class TimeSeriesCreator(QtGui.QDialog):
 
         layout = QtGui.QVBoxLayout()
         layout.addWidget(explanation)
+        layout.addLayout(hologram_btns)
         layout.addWidget(self.hologram_table)
         layout.addLayout(wavelength_mode_layout)
         layout.addLayout(wavelength_layout)
@@ -118,7 +119,7 @@ class TimeSeriesCreator(QtGui.QDialog):
             self.wavelength3_widget.hide()
             self.wavelength3_widget.setValue(0)
         
-        if n_wavelengths == 3:
+        elif n_wavelengths == 3:
             self.wavelength2_widget.show()
             self.wavelength2_widget.setValue(488)
             self.wavelength3_widget.show()

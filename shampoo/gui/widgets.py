@@ -166,6 +166,9 @@ class ReconstructedHologramViewer(QtGui.QWidget):
         self.layout = QtGui.QVBoxLayout()
         self.layout.addWidget(self.tabs)
         self.setLayout(self.layout)
+
+        # Set to maximal size, since this is the star of the show
+        self.resize(self.maximumSize())
     
     @QtCore.pyqtSlot(object)
     def display(self, data_tup):
@@ -189,76 +192,3 @@ class ReconstructedHologramViewer(QtGui.QWidget):
     def clear(self):
         self.amplitude_viewer.clear()
         self.phase_viewer.clear()
-
-class PropagationDistanceSelector(QtGui.QWidget):
-    """
-    QWidget allowing the user to select an array of propagation distances
-
-    Signals
-    -------
-    propagation_distance_signal
-        Emitted when propagation distances are modified.
-    """
-    propagation_distance_signal = QtCore.pyqtSignal(object, name = 'propagation_distance')
-
-    def __init__(self, *args, **kwargs):
-
-        super(PropagationDistanceSelector, self).__init__(*args, **kwargs)
-
-        self.start_value_widget = None
-        self.stop_value_widget = None
-        self.step_value_widget = None
-
-        # Widgets
-        self.start_value_widget = QtGui.QLineEdit(parent = self)
-        self.stop_value_widget = QtGui.QLineEdit(parent = self)
-        self.step_value_widget = QtGui.QLineEdit(parent = self)
-
-        # Initial values
-        self.start_value_widget.setText(str(DEFAULT_PROPAGATION_DISTANCE))
-        self.stop_value_widget.setText('0.0')
-        self.step_value_widget.setText('0.0')
-
-        self.start_value_widget.editingFinished.connect(self.update_propagation_distance)
-        self.stop_value_widget.editingFinished.connect(self.update_propagation_distance)
-        self.step_value_widget.editingFinished.connect(self.update_propagation_distance)
-
-        # Final layout
-        self.layout = QtGui.QVBoxLayout()
-
-        self.start_layout = QtGui.QHBoxLayout()
-        self.start_layout.addWidget(QtGui.QLabel('Start (m)'))
-        self.start_layout.addWidget(self.start_value_widget)
-
-        self.stop_layout = QtGui.QHBoxLayout()
-        self.stop_layout.addWidget(QtGui.QLabel('Stop (m)'))
-        self.stop_layout.addWidget(self.stop_value_widget)
-
-        self.step_layout = QtGui.QHBoxLayout()
-        self.step_layout.addWidget(QtGui.QLabel('Step (m)'))
-        self.step_layout.addWidget(self.step_value_widget)
-
-        self.values_layout = QtGui.QHBoxLayout()
-        self.values_layout.addLayout(self.start_layout)
-        self.values_layout.addLayout(self.stop_layout)
-        self.values_layout.addLayout(self.step_layout)
-
-        self._title_layout = QtGui.QHBoxLayout()
-        self._title_layout.addWidget(QtGui.QLabel(text = 'Propagation distance', parent = self))
-        self.layout.addLayout(self._title_layout)
-        self.layout.addLayout(self.values_layout)
-        self.setLayout(self.layout)
-    
-    @QtCore.pyqtSlot()
-    def update_propagation_distance(self):
-        """ Emits the propagation_distance signal with the sorted propagation distance data parsed from the widget. """
-
-        start, stop, step = [float(widget.text()) for widget in (self.start_value_widget, self.stop_value_widget, self.step_value_widget)]
-
-        if step == 0:
-            propagation_distance = [start]
-        else:
-            # Singe arange does not include the 'stop' value, add another step
-            propagation_distance = np.arange(start = start, stop = stop + step, step = step)
-        
-        self.propagation_distance_signal.emit(propagation_distance)
