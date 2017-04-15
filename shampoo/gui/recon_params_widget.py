@@ -47,8 +47,8 @@ class ReconstructionParametersWidget(QtGui.QWidget):
         multi_prop_dist_btn.setChecked(False)
 
         propagation_distance_mode = QtGui.QButtonGroup(parent = self)
-        propagation_distance_mode.addButton(single_prop_dist_btn, id = 0)
-        propagation_distance_mode.addButton(multi_prop_dist_btn, id = 1)
+        propagation_distance_mode.addButton(single_prop_dist_btn, 0)
+        propagation_distance_mode.addButton(multi_prop_dist_btn, 1)
         propagation_distance_mode.setExclusive(True)
         propagation_distance_mode.buttonClicked[int].connect(self.set_multi_dist_mode)
 
@@ -100,5 +100,4 @@ class ReconstructionParametersWidget(QtGui.QWidget):
         propagation_distance = np.array([start]) if step == 0 else np.arange(start = start, 
                                                                            stop = stop + step, 
                                                                            step = step)
-        print(propagation_distance)
         self.propagation_distance_signal.emit(propagation_distance)

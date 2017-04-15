@@ -157,7 +157,7 @@ class TimeSeriesCreator(QtGui.QDialog):
             if v != 0:
                 wavelengths.append(v*1e-9)  # widgets show nm, we want meters
 
-        t = TimeSeries(filename = filename, mode = 'w')
+        t = TimeSeries(name = filename, mode = 'w')
         for index, path in enumerate(self.holograms):
             # TODO: record wavelength somehow
             # TODO: choose time-points instead of index

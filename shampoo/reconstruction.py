@@ -37,12 +37,16 @@ from astropy.convolution import convolve_fft, MexicanHat2DKernel
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 
-# Try importing optional dependency PyFFTW for Fourier transforms. If the import
-# fails, import scipy's FFT module instead
+# Try importing optional dependency PyFFTW for Fourier transforms. 
+# Numpy's fft_intel package might also be preferable
+# If the import fails, import scipy's FFT module instead
 try:
     from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
 except ImportError:
-    from scipy.fftpack import fft2, ifft2
+    try:
+        from np.fft_intel import fft2, ifft2
+    except ImportError:
+        from scipy.fftpack import fft2, ifft2
 
 __all__ = ['Hologram', 'ReconstructedWave', 'unwrap_phase']
 RANDOM_SEED = 42
@@ -108,7 +112,7 @@ def _load_hologram(hologram_path):
     """
     Load a hologram from path ``hologram_path`` using scikit-image and numpy.
     """
-    return np.array(imread(hologram_path, plugin = 'tifffile'), dtype=np.float64)
+    return np.array(imread(hologram_path), dtype=np.float64)
 
 
 def _find_peak_centroid(image, gaussian_width=10):
@@ -149,7 +153,8 @@ def _crop_to_square(image):
     """
     sh = image.shape
     if sh[0] != sh[1]:
-        square_image = image[:min(sh), :min(sh)]
+        # Do not consider the 3rd axis (color)
+        square_image = image[:min(sh[:2]), :min(sh[:2])]
     else:
         square_image = image
 
@@ -239,6 +244,11 @@ class Hologram(object):
             Path to the hologram to load
         """
         hologram = _load_hologram(hologram_path)
+
+        # Default wavelength for 3-wavelength is the following
+        if hologram.ndim == 3 :
+            return cls(hologram, wavelength = np.array([405, 488, 532]), **kwargs)
+
         return cls(hologram, **kwargs)
 
     def reconstruct(self, propagation_distance, fourier_mask=None):

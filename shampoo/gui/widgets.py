@@ -1,20 +1,13 @@
 from __future__ import absolute_import
 
-from multiprocessing import Queue
-import numpy as np
 import os
+from multiprocessing import Queue
+
+import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
 
 from ..reconstruction import Hologram, ReconstructedWave
-
-# Try importing optional dependency PyFFTW for Fourier transforms. If the import
-# fails, import scipy's FFT module instead
-try:
-    from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
-    from scipy.fftpack import fftshift
-except ImportError:
-    from scipy.fftpack import fftshift, fft2, ifft2
 
 ICONS_FOLDER = os.path.join(os.path.dirname(__file__), 'icons')
 DEFAULT_PROPAGATION_DISTANCE = 0.03658
@@ -34,6 +27,64 @@ class ShampooStatusBar(QtGui.QStatusBar):
     @QtCore.pyqtSlot(str)
     def update_status(self, message):
         self.status_label.setText(message)
+
+class TimeSeriesControls(QtGui.QWidget):
+    """ Control of TimeSeries, as well as some metadata """
+    
+    time_point_request_signal = QtCore.pyqtSignal(float)
+
+    def __init__(self, *args, **kwargs):
+        super(TimeSeriesControls, self).__init__(*args, **kwargs)
+        self.time_points = None
+
+        self.filename_label = QtGui.QLabel('', self)
+        self.filename_label.setAlignment(QtCore.Qt.AlignCenter)
+
+        self.time_point_label = QtGui.QLabel('', self)
+        self.time_point_label.setAlignment(QtCore.Qt.AlignLeft)
+
+        self.time_point_slider = QtGui.QSlider(parent = self)
+        self.time_point_slider.setTracking(True)
+        self.time_point_slider.setOrientation(QtCore.Qt.Horizontal)
+
+        # Update label with time_point
+        self.time_point_slider.valueChanged.connect(self.time_point_label.setNum)
+        self.time_point_slider.valueChanged.connect(self._update)
+
+        time_label = QtGui.QLabel('Time point: ', self)
+        time_label.setAlignment(QtCore.Qt.AlignLeft)
+        controls = QtGui.QHBoxLayout()
+        controls.addWidget(time_label)
+        controls.addWidget(self.time_point_label)
+        controls.addWidget(self.time_point_slider)
+
+        title = QtGui.QLabel('Time-series controls')
+        title.setAlignment(QtCore.Qt.AlignCenter)
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(title)
+        layout.addWidget(self.filename_label)
+        layout.addLayout(controls)
+        self.setLayout(layout)
+
+        self.hide()
+    
+    @QtCore.pyqtSlot(dict)
+    def update_metadata(self, metadata):
+        """ Update TimeSeries metadata """
+        if not metadata:
+            self.hide()
+            return
+        
+        self.time_points = metadata['time_points']
+        self.time_point_slider.setRange(0, len(metadata['time_points']) - 1)
+        self.time_point_slider.setValue(0)
+        self.filename_label.setText('File: {}'.format(metadata['filename']))
+        self.show()
+    
+    @QtCore.pyqtSlot(int)
+    def _update(self, index):
+        self.time_point_request_signal.emit(self.time_points[index])
+
 
 class CameraFeatureDialog(QtGui.QDialog):
     """
@@ -97,41 +148,6 @@ class CameraFeatureDialog(QtGui.QDialog):
         feature_dict = {'exposure': int(self.exposure_edit.text()), 'bit_depth': int(self.bit_depth_edit.text())}
         self.camera_features_update_signal.emit(feature_dict)
         super(CameraFeatureDialog, self).accept()
-    
-class RawDataViewer(QtGui.QWidget):
-    """
-    QWidget displaying raw holograms, as well as related information
-    such as Fourier decomposition.
-    """
-    def __init__(self, *args, **kwargs):
-        super(RawDataViewer, self).__init__(*args, **kwargs)
-
-        self.raw_data_viewer = pg.ImageView(parent = self, name = 'Raw data')
-        self.fourier_plane_viewer = pg.ImageView(parent = self, name = 'Fourier plane')
-
-        tabs = QtGui.QTabWidget(parent = self)
-        tabs.addTab(self.raw_data_viewer, 'Raw hologram')
-        tabs.addTab(self.fourier_plane_viewer, 'Fourier plane')
-
-        layout = QtGui.QHBoxLayout()
-        layout.addWidget(tabs)
-        self.setLayout(layout)
-    
-    @QtCore.pyqtSlot(object)
-    def display(self, data):
-        """
-        Display raw hologram and associated Fourier plane information.
-
-        Parameters
-        ----------
-        data : Hologram or ndarray
-        """
-        if not isinstance(data, Hologram):
-            data = Hologram(data)
-        
-        self.raw_data_viewer.setImage(data.hologram)
-        ft = fftshift(fft2(data.hologram, axes = (0, 1)), axes = (0,1))
-        self.fourier_plane_viewer.setImage(ft.real)
 
 class ReconstructedHologramViewer(QtGui.QWidget):
     """
@@ -185,7 +201,7 @@ class ReconstructedHologramViewer(QtGui.QWidget):
         fourier_mask = reconstructed.fourier_mask
 
         self.amplitude_viewer.setImage(img = reconstructed.intensity, xvals = xvals)
-        self.phase_viewer.setImage(img = reconstructed.phase, xvals = xvals)
+        self.phase_viewer.setImage(img = np.nan_to_num(reconstructed.phase), xvals = xvals)
         self.fourier_mask_viewer.setImage(img = fourier_mask, xvals = xvals)
         
     @QtCore.pyqtSlot()

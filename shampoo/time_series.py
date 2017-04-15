@@ -69,12 +69,15 @@ class TimeSeries(h5py.File):
             self.attrs['time_points'] = (time_point,)
             self.hologram_group.create_dataset('holograms', 
                                                data = np.expand_dims(np.atleast_3d(hologram.hologram), axis = 3),
-                                               dtype = np.float, **self._default_ckwargs)
+                                               dtype = np.float, maxshape = (None, None, 3, None),
+                                               **self._default_ckwargs)
             self.reconstructed_group.create_dataset('reconstructed_wave', 
                                                     shape = self.hologram_group['holograms'].shape, 
-                                                    dtype = np.complex, **self._default_ckwargs)
+                                                    dtype = np.complex,  maxshape = (None, None, 3, None),
+                                                    **self._default_ckwargs)
             self.reconstructed_group.create_dataset('fourier_mask', 
                                                     shape = self.hologram_group['holograms'].shape,
+                                                    maxshape = (None, None, 3, None),
                                                     dtype = np.bool, **self._default_ckwargs)
         
         # The entire TimeSeries has the uniform wavelengths
@@ -128,8 +131,6 @@ class TimeSeries(h5py.File):
         ----------
         time_point : float
             Time-point in seconds.
-        wavelength : int
-            Wavelength in nm.
         
         Returns
         -------
