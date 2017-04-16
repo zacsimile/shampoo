@@ -5,7 +5,6 @@ from pyqtgraph import QtCore
 
 from . import error_aware
 from .. import Hologram, TimeSeries
-from .reactor import Reconstructor
 
 
 class ShampooController(QtCore.QObject):
@@ -14,7 +13,7 @@ class ShampooController(QtCore.QObject):
 
     Signals
     -------
-    reconstructed_hologram_signal
+    reconstructedto_be_reconstructed
         Emits a reconstructed hologram whenever one is available.
     
     raw_data_signal
@@ -28,11 +27,8 @@ class ShampooController(QtCore.QObject):
     load_time_series[str]
         Load an HDF5-based TimeSeries object
 
-    send_data[object]
+    reconstruct[object]
         Send raw holographic data, to be reconstructed.
-
-    data_from_time_series[float]
-        Load a Hologram from a time-series.
     
     send_snapshot_data
         Send raw holographic data to be reconstructed, from a camera snapshot.
@@ -51,14 +47,16 @@ class ShampooController(QtCore.QObject):
         Choose camera from a list of ID. Not implemented.
     """
     raw_data_signal = QtCore.pyqtSignal(object)
+    reconstruction_parameters_signal = QtCore.pyqtSignal(dict)
     reconstructed_hologram_signal = QtCore.pyqtSignal(object)
+    reconstruction_status_signal = QtCore.pyqtSignal(str)
+
+    to_be_reconstructed = QtCore.pyqtSignal(object, dict)
 
     # Time series metadata
     time_series_metadata_signal = QtCore.pyqtSignal(dict)
 
-    # Status signals
-    reconstruction_in_progress_signal = QtCore.pyqtSignal(str)
-    reconstruction_complete_signal = QtCore.pyqtSignal(str)
+    # Camera signals
     camera_connected_signal = QtCore.pyqtSignal(bool)
 
     error_message_signal = QtCore.pyqtSignal(str)
@@ -73,18 +71,21 @@ class ShampooController(QtCore.QObject):
         
         self.camera = None
         self.camera_connected_signal.emit(False)
-
-        # Hologram reconstruction and display
-        def display_callback(item):
-            self.reconstructed_hologram_signal.emit(item)
-            self.reconstruction_complete_signal.emit('Reconstruction complete') 
         
-        self.reconstruction_reactor = Reconstructor(callback = display_callback)
-        self.reconstruction_reactor.start()
+        self._reconstruction_thread = QtCore.QThread()
+        self.reconstructor = QReconstructor()
+        self.reconstructor.moveToThread(self._reconstruction_thread)
+        self._reconstruction_thread.start()
 
-        # Private attributes
-        self._latest_hologram = None
-    
+        # Wire up reconstructor
+        self.reconstruction_parameters_signal.connect(
+            self.reconstructor.update_reconstruction_parameters)
+        self.to_be_reconstructed.connect(self.reconstructor.reconstruct)
+
+        # Propagation of signals across reconstructor and controller
+        self.reconstructor.reconstructed_signal.connect(self.reconstructed_hologram_signal)
+        self.reconstructor.reconstruction_status.connect(self.reconstruction_status_signal)
+
     @error_aware('Time series could not be loaded')
     @QtCore.pyqtSlot(str)
     def load_time_series(self, path):
@@ -111,39 +112,27 @@ class ShampooController(QtCore.QObject):
         """
         data = self.camera.snapshot()
         self.send_data(data)
-    
+
     @QtCore.pyqtSlot(object)
-    def send_data(self, data):
+    @QtCore.pyqtSlot(object, dict)
+    def reconstruct(self, data, params = dict()):
         """ 
         Send holographic data to the reconstruction reactor.
 
         Parameters
         ----------
-        data : ndarray or Hologram object
+        data : Hologram object or TimeSeries
             Can be any type that can is accepted by the Hologram() constructor.
         """
-        if self.time_series is not None:
-            # 'unload' the existing time-series
-            self.time_series.close()
-            self.time_series_metadata_signal.emit(dict())
-            self.time_series = None
-
-        if not isinstance(data, Hologram):
-            data = Hologram(data)
-        
-        self._latest_hologram = data
+        print('controller:reconstruct')
         self.raw_data_signal.emit(data)
-
-        self.reconstruction_reactor.send_item( (self.propagation_distance, data, self.fourier_mask) )
-        self.reconstruction_in_progress_signal.emit('Reconstruction in progress...')
+        self.to_be_reconstructed[object, dict].emit(data, params)
     
     @error_aware('Data could not be loaded from time-series')
     @QtCore.pyqtSlot(float)
     def data_from_time_series(self, time_point):
         """ Display raw data and reconstruction from TimeSeries """
-        hologram = self.time_series.hologram(time_point)
-        self.send_data(hologram)
-        # TODO: see if reconstruction exists, and bypass reactor if possible
+        self.reconstruct(self.time_series, {'time_point': time_point})
     
     @error_aware('Latest hologram could not be saved.')
     @QtCore.pyqtSlot(object)
@@ -160,10 +149,7 @@ class ShampooController(QtCore.QObject):
     @error_aware('Fourier mask could not be set.')
     @QtCore.pyqtSlot(object)
     def set_fourier_mask(self, mask):
-        self.fourier_mask = img_as_bool(mask)
-        # Refresh screen
-        if self._latest_hologram:
-            self.send_data(self._latest_hologram)
+        self.reconstruction_parameters_signal.emit({'fourer_mask': img_as_bool(mask)})
     
     @error_aware('Propagation distance(s) could not be updated.')
     @QtCore.pyqtSlot(object)
@@ -176,10 +162,7 @@ class ShampooController(QtCore.QObject):
         item : array-like
             Propagation distances in meters.
         """
-        self.propagation_distance = item
-        # Refresh screen
-        if self._latest_hologram:
-            self.send_data(self._latest_hologram)
+        self.reconstruction_parameters_signal.emit({'propagation_distance': item})
     
     @error_aware('Camera features could not be updated.')
     @QtCore.pyqtSlot(dict)
@@ -219,5 +202,36 @@ class ShampooController(QtCore.QObject):
         self.camera_connected_signal.emit(True)
     
     def stop(self):
-        """ Stop all reactors. """
-        self.reconstruction_reactor.stop()
+        pass
+
+class QReconstructor(QtCore.QObject):
+    """ QObject responsible for reconstructing holograms """
+    reconstructed_signal = QtCore.pyqtSignal(object)
+    reconstruction_status = QtCore.pyqtSignal(str)
+
+    def __init__(self, *args, **kwargs):
+        super(QReconstructor, self).__init__(*args, **kwargs)
+
+        self.reconstruction_parameters = dict()
+        self.latest_hologram = None
+    
+    @QtCore.pyqtSlot(object, dict)
+    def reconstruct(self, hologram, params = dict()):
+        """ Hologram reconstruction. Note that because a TimeSeries has a reconstruct() 
+        method that returns a ReconstructedWave, we can pass a TimeSeries as the hologram 
+        parameter and include the time_point in params """
+        self.latest_hologram = hologram
+
+        self.reconstruction_status.emit('Reconstruction in progress...')
+        reconstructed_wave = hologram.reconstruct(**self.reconstruction_parameters, **params)
+        self.reconstructed_signal.emit(reconstructed_wave)
+        print('qreconstructor:reconstruct')
+        self.reconstruction_status.emit('Reconstruction complete.')
+    
+    @QtCore.pyqtSlot(dict)
+    def update_reconstruction_parameters(self, params):
+        """ Update reconstruction parameters with new values, and 
+        reconstruct latest with new parameters """
+        self.reconstruction_parameters.update(params)
+        if self.latest_hologram is not None:
+            self.reconstruct(hologram = self.latest_hologram)

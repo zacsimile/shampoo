@@ -47,6 +47,10 @@ def test_reconstruction_multiwavelength():
     assert np.allclose(wl, holo.wavelength)
     assert im.shape == w.reconstructed_wave.shape
 
+    # in some rare occations, it has appeared that the
+    # reconstructed waves were all NaNs.
+    assert np.all(np.isfinite(w.reconstructed_wave))
+
 def _gaussian2d(amplitude, width, centroid, dim):
     x, y = np.mgrid[0:dim, 0:dim]
     x_centroid, y_centroid = centroid

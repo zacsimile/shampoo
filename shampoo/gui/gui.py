@@ -56,7 +56,6 @@ class App(QtGui.QMainWindow):
         Select the propagation distance(s) with which to reconstruct
         holograms.
     """
-
     save_latest_hologram_signal = QtCore.pyqtSignal(object, name = 'save_latest_hologram_signal')
     connect_camera_signal = QtCore.pyqtSignal(object, name = 'connect_camera_signal')
 
@@ -157,8 +156,6 @@ class App(QtGui.QMainWindow):
         self.camera_menu.addAction(self.camera_features_action)
         self.camera_features_action.setEnabled(False)
 
-
-
         self.reconstruction_parameters_widget.propagation_distance_signal.connect(self.controller.update_propagation_distance)
         self.controller.reconstructed_hologram_signal.connect(self.reconstructed_viewer.display)
         self.controller.raw_data_signal.connect(self.data_viewer.display)
@@ -168,8 +165,7 @@ class App(QtGui.QMainWindow):
 
         # Controller status signals
         self.connect_camera_signal.connect(self.controller.connect_camera)
-        self.controller.reconstruction_in_progress_signal.connect(self.status_bar.update_status)
-        self.controller.reconstruction_complete_signal.connect(self.status_bar.update_status)
+        self.controller.reconstruction_status_signal.connect(self.status_bar.update_status)
 
         # What actions are available when a camera is made available
         # These actions will become unavailable when a camera is disconnected.
@@ -186,7 +182,7 @@ class App(QtGui.QMainWindow):
         """ Load a hologram into memory and displays it. """
         path = self.file_dialog.getOpenFileName(self, 'Load holographic data', filter = '*tif')[0]
         hologram = Hologram.from_tif(os.path.abspath(path))
-        self.controller.send_data(data = hologram)
+        self.controller.reconstruct(data = hologram)
     
     @error_aware('Fourier mask could not be loaded')
     @QtCore.pyqtSlot()

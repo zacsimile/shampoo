@@ -187,22 +187,19 @@ class ReconstructedHologramViewer(QtGui.QWidget):
         self.resize(self.maximumSize())
     
     @QtCore.pyqtSlot(object)
-    def display(self, data_tup):
+    def display(self, reconstructed):
         """
         Dsplays the amplitude and phase information of a reconstructed hologram.
 
         Parameters
         ----------
-        data_tup : tuple of ndarrays,
-            Contains the propagation distance information, and a ReconstructedWave instance
+        reconstructed : ReconstructedWave
         """
-        xvals, reconstructed = data_tup
-        xvals = np.array(xvals)
         fourier_mask = reconstructed.fourier_mask
 
-        self.amplitude_viewer.setImage(img = reconstructed.intensity, xvals = xvals)
-        self.phase_viewer.setImage(img = np.nan_to_num(reconstructed.phase), xvals = xvals)
-        self.fourier_mask_viewer.setImage(img = fourier_mask, xvals = xvals)
+        self.amplitude_viewer.setImage(img = reconstructed.intensity)
+        self.phase_viewer.setImage(img = np.nan_to_num(reconstructed.phase))
+        self.fourier_mask_viewer.setImage(img = fourier_mask)
         
     @QtCore.pyqtSlot()
     def clear(self):

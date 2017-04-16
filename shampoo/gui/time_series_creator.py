@@ -159,7 +159,6 @@ class TimeSeriesCreator(QtGui.QDialog):
 
         t = TimeSeries(name = filename, mode = 'w')
         for index, path in enumerate(self.holograms):
-            # TODO: record wavelength somehow
             # TODO: choose time-points instead of index
             holo = Hologram.from_tif(path, wavelength = wavelengths)
             t.add_hologram(holo, time_point = index)

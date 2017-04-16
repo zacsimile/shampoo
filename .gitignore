@@ -52,3 +52,5 @@ distribute-*.tar.gz
 # Mac OSX
 .DS_Store
 benchmark.py
+.vscode/settings.json
+*.json

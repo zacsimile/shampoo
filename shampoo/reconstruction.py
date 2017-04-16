@@ -13,7 +13,7 @@ are applied [2]_.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from collections import Iterable, deque
+from collections import Sized, deque
 
 import warnings
 from multiprocessing.dummy import Pool as ThreadPool
@@ -246,8 +246,8 @@ class Hologram(object):
         hologram = _load_hologram(hologram_path)
 
         # Default wavelength for 3-wavelength is the following
-        if hologram.ndim == 3 :
-            return cls(hologram, wavelength = np.array([405, 488, 532]), **kwargs)
+        if hologram.ndim == 3 and 'wavelength' not in kwargs:
+            kwargs['wavelength'] = np.array([405, 488, 532])*1e-9
 
         return cls(hologram, **kwargs)
 
@@ -271,8 +271,12 @@ class Hologram(object):
         reconstructed_wave : `~shampoo.reconstruction.ReconstructedWave`
             The reconstructed wave.
         """
-        if isinstance(propagation_distance, Iterable):
-            return self.reconstruct_multithread(propagation_distances = propagation_distance,
+        if isinstance(propagation_distance, Sized):
+            # No need to spawn a thread pool for a single distance
+            if len(propagation_distance) == 1:
+                propagation_distance = propagation_distance[0]
+            else:
+                return self.reconstruct_multithread(propagation_distances = propagation_distance,
                                                 fourier_mask = fourier_mask)
 
         # Read input image
@@ -527,8 +531,8 @@ class Hologram(object):
 
         n_z_slices = len(propagation_distances)
 
-        wave_shape = self.hologram.shape
-        wave_cube = np.zeros((n_z_slices, wave_shape[0], wave_shape[1]),
+        wave_shape = np.atleast_3d(self.hologram).shape
+        wave_cube = np.zeros((wave_shape + (n_z_slices,)),
                                dtype=np.complex128)
         mask_cube = np.empty_like(wave_cube, dtype = np.bool)
 
@@ -536,8 +540,8 @@ class Hologram(object):
             # Reconstruct image, add to data cube
             wave = self.reconstruct(propagation_distances[index], 
                                     fourier_mask = fourier_mask)
-            wave_cube[index, ...] = wave.reconstructed_wave
-            mask_cube[index, ...] = wave.fourier_mask
+            wave_cube[..., index] = wave.reconstructed_wave
+            mask_cube[..., index] = wave.fourier_mask
 
         # Make the Pool of workers
         pool = ThreadPool(threads)
