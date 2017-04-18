@@ -36,6 +36,10 @@ class TimeSeries(h5py.File):
     @property
     def wavelengths(self):
         return tuple(self.attrs.get('wavelengths', default = tuple()))
+    
+    @property
+    def depths(self):
+        return tuple(self.attrs.get('depths', default = tuple()))
 
     @property
     def hologram_group(self):
@@ -44,6 +48,10 @@ class TimeSeries(h5py.File):
     @property
     def reconstructed_group(self):
         return self.require_group('reconstructed')
+    
+    @property
+    def fourier_mask_group(self):
+        return self.require_group('/reconstructed/fourier_masks')
 
     def add_hologram(self, hologram, time_point = 0):
         """
@@ -61,48 +69,30 @@ class TimeSeries(h5py.File):
             If the hologram is not compatible with the current TimeSeries,
             e.g. the wavelengths do not match.
         """
+        # TODO: Holograms are stored as UINT8
+        #       Is that sensible?
         holo_wavelengths = tuple(hologram.wavelength.reshape((-1)))
+        time_point = float(time_point)
 
         if len(self.time_points) == 0:
-            # This is the first hologram. Reshape all dataset to fit the resolution
-            # and number of wavelengths
-            # Extend to one time-point at axis 3
+            # This is the first hologram. Record the wavelength
+            # and this will never change again.
             self.attrs['wavelengths'] = holo_wavelengths
-            self.attrs['time_points'] = (time_point,)
-            self.hologram_group.create_dataset('holograms', 
-                                               data = np.expand_dims(np.atleast_3d(hologram.hologram), axis = 3),
-                                               dtype = np.float, maxshape = (None, None, 3, None),
-                                               **self._default_ckwargs)
-            self.reconstructed_group.create_dataset('reconstructed_wave', 
-                                                    shape = self.hologram_group['holograms'].shape, 
-                                                    dtype = np.complex,  maxshape = (None, None, 3, None),
-                                                    **self._default_ckwargs)
-            self.reconstructed_group.create_dataset('fourier_mask', 
-                                                    shape = self.hologram_group['holograms'].shape,
-                                                    maxshape = (None, None, 3, None),
-                                                    dtype = np.bool, **self._default_ckwargs)
         
         # The entire TimeSeries has the uniform wavelengths
         if not np.allclose(holo_wavelengths, self.wavelengths):
             raise ValueError('Wavelengths of this hologram ({}) do not match the TimeSeries \
                               wavelengths ({})'.format(holo_wavelengths, self.wavelengths))
 
-        # Find time-point index if it exists
-        # Otherwise, insert the time_point at the end
-        # WARNING: this means that time_points are not sorted
-        # TODO: make sure holograms are always sorted along time-axis?
+        # If time-point already exists, we will override the hologram
+        # that is already stored there. Otherwise, create a new dataset
+        gp = self.hologram_group
         if time_point in self.time_points:
-            i = self._time_index(time_point)
+            return gp[str(time_point)].write_direct(np.atleast_3d(hologram.hologram))
         else:
-            # Resize all datasets along time-axis and include new time-point
-            self.attrs['time_points'] = self.time_points + (time_point,)
-            self.hologram_group['holograms'].resize(size = len(self.attrs['time_points']), axis = 3)
-            self.reconstructed_group['reconstructed_wave'].resize(self.hologram_group['holograms'].shape)
-            self.reconstructed_group['fourier_mask'].resize(self.hologram_group['holograms'].shape)
-
-            i = len(self.time_points) - 1
-
-        self.hologram_group['holograms'][:,:,:,i] = np.atleast_3d(hologram.hologram)
+            self.attrs['time_points'] = self.time_points + (time_point, )
+            return gp.create_dataset(str(time_point), data = np.atleast_3d(hologram.hologram), 
+                                     dtype = np.uint8, **self._default_ckwargs)
     
     def hologram(self, time_point, **kwargs):
         """
@@ -117,34 +107,19 @@ class TimeSeries(h5py.File):
         Returns
         -------
         out : Hologram
-        """
-        # Use np.seuqqze to remove dimensions of size 1
-        # e.g. axis 2 for single wavelength
-        dset = self.hologram_group['holograms']
-        arr = np.array(dset[:,:,:,self._time_index(time_point)])
-        return Hologram(np.squeeze(arr), wavelength = self.wavelengths, **kwargs)
-    
-    def reconstructed_wave(self, time_point):
-        """
-        Returns the ReconstructedWave object from archive. 
 
-        Parameters
-        ----------
-        time_point : float
-            Time-point in seconds.
-        
-        Returns
-        -------
-        out : ReconstructedWave object
+        Raises
+        ------
+        ValueError
+            If the time-point hasn't been recorded in the time-series.
         """
-        # Use np.squeeze to remove dimensions of size 1, 
-        # i.e. axis 2 for a single wavelength
-        time_index = self._time_index(time_point)
-        gp = self.reconstructed_group
-        wave = np.array(gp['reconstructed_wave'][:,:,:,time_index])
-        mask = np.array(gp['fourier_mask'][:,:,:,time_index])
-        return ReconstructedWave(np.squeeze(wave), fourier_mask = np.squeeze(mask))
-    
+        time_point = float(time_point)
+        if time_point not in self.time_points:
+            raise ValueError('Time-point {} not in TimeSeries.'.format(time_point))
+        
+        dset = self.hologram_group[str(time_point)]
+        return Hologram(np.array(dset), wavelength = self.wavelengths, **kwargs)
+
     def reconstruct(self, time_point, propagation_distance, 
                     fourier_mask = None, **kwargs):
         """
@@ -157,6 +132,9 @@ class TimeSeries(h5py.File):
             Time-point in seconds.
         propagation_distance : float
             Propagation distance in meters.
+        fourier_mask : ndarray or None, optional
+            User-specified Fourier mask. Refer to Hologram.reconstruct()
+            documentation for details.
         
         Returns
         -------
@@ -164,23 +142,89 @@ class TimeSeries(h5py.File):
             The ReconstructedWave is both stored in the TimeSeries HDF5 file
             and returned to the user. 
         """
-        
-        # TODO: extend to multiple propagation distances
+        time_point = float(time_point)
+
+        # TODO: provide an accumulator array for hologram.reconstruct()
+        #       so that depths are written to disk on the fly?
         hologram = self.hologram(time_point)
         recon_wave = hologram.reconstruct(propagation_distance, 
-                                          fourier_mask = fourier_mask)
+                                          fourier_mask = fourier_mask,
+                                          **kwargs)
         
-        # TODO: store propagation distance(s)?
-        time_index = self._time_index(time_point)
         gp = self.reconstructed_group
-        gp['reconstructed_wave'][:,:,:,time_index] = np.atleast_3d(recon_wave.reconstructed_wave)
-        gp['fourier_mask'][:,:,:,time_index] = np.atleast_3d(recon_wave.fourier_mask)
+        fg = self.fourier_mask_group
+        # It is simplest to delete what already exists since it 
+        # might not be of the same shape.
+        if str(time_point) in gp:
+            del gp[str(time_point)], fg[str(time_point)]
+
+        gp.create_dataset(str(time_point), data = recon_wave.reconstructed_wave, 
+                            dtype = np.complex, **self._default_ckwargs)
+        fg.create_dataset(str(time_point), data = recon_wave.fourier_mask, 
+                            dtype = np.bool,**self._default_ckwargs)
+        
+        # Return the ReconstructedWave so that the TimeSeries can be passed
+        # to anything that expect a reconstruct() method.
         return recon_wave
     
-    def batch_reconstruct(self, propagation_distance, fourier_mask = None, **kwargs):
-        """ Reconstruct all the holograms stored in the TimeSeries """
-        raise NotImplementedError
+    def reconstructed_wave(self, time_point, **kwargs):
+        """
+        Returns the ReconstructedWave object from archive. 
+        Keyword arguments are passed to the ReconstructedWave 
+        contructor.
+
+        Parameters
+        ----------
+        time_point : float
+            Time-point in seconds.
+        
+        Returns
+        -------
+        out : ReconstructedWave object
+
+        Raises
+        ------
+        ValueError
+            If the reconstruction is unavailable either due to having no
+            associated hologram, or reconstruction never having been performed.
+        """
+        time_point = str(float(time_point))
+
+        gp, fp = self.reconstructed_group, self.fourier_mask_group
+        if time_point not in gp:
+            raise ValueError('Reconstruction at {} is unavailable or reconstruction \
+                              was never performed.'.format(time_point))
+
+        wave, mask = np.array(gp[time_point]), np.array(fp[time_point])
+        return ReconstructedWave(wave, fourier_mask = mask, **kwargs)
     
-    def _time_index(self, time_point):
-        """ Determine the index of the time_point within the TimeSeries time_points""" 
-        return np.argmin(np.abs(np.array(self.time_points) - time_point))
+    def batch_reconstruct(self, propagation_distance, fourier_mask = None,
+                          callback = None, **kwargs):
+        """ 
+        Reconstruct all the holograms stored in the TimeSeries. Keyword 
+        arguments are passed to the Hologram.reconstruct() method. 
+        
+        Parameters
+        ----------
+        time_point : float
+            Time-point in seconds.
+        propagation_distance : float
+            Propagation distance in meters.
+        fourier_mask : ndarray or None, optional
+            User-specified Fourier mask. Refer to Hologram.reconstruct()
+            documentation for details.
+        callback : callable, optional
+            Callable that takes an int between 0 and 99. The callback will be
+            called after each reconstruction with the proportion of completed
+            reconstruction.
+        """
+        if callback is None:
+            callback = lambda i: None
+            
+        total = len(self.time_points)
+        
+        for index, time_point in enumerate(self.time_points):
+            self.reconstruct(time_point = time_point, 
+                            propagation_distance = propagation_distance,
+                            fourier_mask = fourier_mask, **kwargs)
+            callback(int(index / total))

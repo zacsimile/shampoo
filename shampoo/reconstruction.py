@@ -255,9 +255,6 @@ class Hologram(object):
         """
         Reconstruct the wave at ``propagation_distance``.
 
-        If ``cache`` is `True`, the reconstructed wave will be cached onto the
-        `~shampoo.reconstruction.Hologram` object for quick retrieval.
-
         Parameters
         ----------
         propagation_distance : float
@@ -538,6 +535,8 @@ class Hologram(object):
 
         def _reconstruct(index):
             # Reconstruct image, add to data cube
+            # It is simpler to store propagation distances along the last
+            # axis, but axes will be swapped so that wavelength is last.
             wave = self.reconstruct(propagation_distances[index], 
                                     fourier_mask = fourier_mask)
             wave_cube[..., index] = wave.reconstructed_wave
@@ -551,7 +550,11 @@ class Hologram(object):
         pool.close()
         pool.join()
 
-        return ReconstructedWave(wave_cube, fourier_mask = mask_cube)
+        # Swap axes so that wave_cube.shape = (x, y, z, wavelengths)
+        wave_cube = np.swapaxes(wave_cube, 2, 3)
+
+        return ReconstructedWave(np.swapaxes(wave_cube, 2, 3), 
+                                 fourier_mask = np.swapaxes(mask_cube, 2, 3))
 
 
 def unwrap_phase(reconstructed_wave, seed=RANDOM_SEED):
@@ -596,7 +599,7 @@ class ReconstructedWave(object):
         Parameters
         ----------
         reconstructed_wave : array_like, complex
-            Reconstructed wave in 2- or 3- dimensions.
+            Reconstructed wave. Last axis is wavelength channel. 
         fourier_mask : array_like
             Reconstruction Fourier mask, in 2- or 3- dimensions.
         """

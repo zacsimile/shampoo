@@ -14,8 +14,8 @@ np.random.seed(RANDOM_SEED)
 
 def _example_hologram(dim = 512):
     """ Generate example Hologram object """
-    im = 1000*np.ones((dim, dim), dtype = np.float) + np.random.random(size = (dim, dim))
-    return Hologram(im)
+    return 200*np.ones((dim, dim), dtype = np.uint8) + np.random.randint(low = 0, high = 255, 
+                                                                         size = (dim, dim), dtype = np.uint8)
 
 def test_time_series_metadata_defaults():
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
@@ -28,22 +28,26 @@ def test_time_series_metadata_defaults():
 def test_time_series_storing_hologram_single_wavelength():
     """ Test storage of holograms with a single wavelength """
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
-    hologram = _example_hologram()
+    hologram = Hologram(_example_hologram())
     with TimeSeries(name = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
         time_series.add_hologram(hologram, time_point = 1)
+
+        # Check that internal containmentship tests are working
+        assert '0.0' in time_series.hologram_group
+        assert '1.0' in time_series.hologram_group
 
         assert time_series.time_points == (0,1)
 
         retrieved = time_series.hologram(0)
         assert isinstance(retrieved, Hologram)
-        assert np.allclose(hologram.hologram, retrieved.hologram)
+        assert np.allclose(np.atleast_3d(hologram.hologram), retrieved.hologram)
         assert np.allclose(time_series.wavelengths, hologram.wavelength)
 
 def test_time_series_storing_hologram_three_wavelength():
     """ Test storage of holograms with three wavelengths """
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
-    hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.float), 
+    hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.uint8), 
                         wavelength = [1,2,3])
     with TimeSeries(filename = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
@@ -58,7 +62,7 @@ def test_time_series_storing_hologram_three_wavelength():
 def test_time_series_storing_hologram_three_wavelength():
     """ Test storage of holograms with three wavelengths """
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
-    hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.float), 
+    hologram = Hologram(np.zeros(shape = (512, 512, 3), dtype = np.uint8), 
                         wavelength = [1,2,3])
     with TimeSeries(name = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
@@ -71,7 +75,26 @@ def test_time_series_storing_hologram_three_wavelength():
 
 def test_time_series_reconstruct_single_wavelength():
     name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
-    hologram = _example_hologram()
+    hologram = Hologram(_example_hologram())
+    with TimeSeries(name = name, mode = 'w') as time_series:
+        time_series.add_hologram(hologram, time_point = 0)
+        ts_reconw = time_series.reconstruct(time_point = 0,
+                                            propagation_distance = 1) 
+        assert isinstance(ts_reconw, ReconstructedWave) 
+        
+        # Retrieve reconstructed wave from archive
+        archived_reconw = time_series.reconstructed_wave(time_point = 0)
+        
+        assert isinstance(archived_reconw, ReconstructedWave)
+
+        assert np.allclose(ts_reconw.reconstructed_wave, 
+                           archived_reconw.reconstructed_wave)
+
+def test_time_series_reconstruct_three_wavelength():
+    name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
+    hologram = Hologram(np.dstack(_example_hologram() for _ in range(3)),
+                        wavelength = [100e-9, 200e-9, 300e-9])
+
     with TimeSeries(name = name, mode = 'w') as time_series:
         time_series.add_hologram(hologram, time_point = 0)
         ts_reconw = time_series.reconstruct(time_point = 0,
