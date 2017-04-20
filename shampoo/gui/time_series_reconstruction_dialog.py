@@ -31,6 +31,11 @@ class TimeSeriesReconstructionDialog(QtGui.QDialog):
         labeled_slider.addWidget(self.time_point_label)
         labeled_slider.addWidget(self.holograms_slider)
 
+        self.reconstruction_progress = QtGui.QProgressBar(parent = self)
+        self.reconstruction_progress.setRange(0, 100)
+        self._reconstruction_update_signal.connect(self.reconstruction_progress.setValue)
+        self.reconstruction_progress.hide()
+
         load_time_series_btn = QtGui.QPushButton('Load time-series', self)
         load_time_series_btn.clicked.connect(self.load_time_series)
 
@@ -62,3 +67,10 @@ class TimeSeriesReconstructionDialog(QtGui.QDialog):
         self.time_point_label.setNum(time_point)
         hologram = self.time_series.hologram(time_point)
         self.holograms_viewer.setImage(hologram.hologram)
+    
+    @QtCore.pyqtSlot()
+    def accept(self):
+        raise NotImplementedError
+        self.time_series.batch_reconstruct(propagation_distance = range(0,10), 
+                                           fourier_mask = fourier_mask, 
+                                           callback = self._reconstruction_update_signal.emit)
