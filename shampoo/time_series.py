@@ -219,7 +219,7 @@ class TimeSeries(h5py.File):
             reconstruction.
         """
         if callback is None:
-            callback = lambda i: None
+            callback = lambda i: None   # trivial
             
         total = len(self.time_points)
         

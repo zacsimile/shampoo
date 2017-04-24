@@ -108,3 +108,24 @@ def test_time_series_reconstruct_three_wavelength():
 
         assert np.allclose(ts_reconw.reconstructed_wave, 
                            archived_reconw.reconstructed_wave)
+
+def test_time_series_batch_reconstruct_single_wavelength():
+    name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
+
+    with TimeSeries(name = name, mode = 'w') as time_series:
+        for time_point in range(3):
+            h = Hologram(_example_hologram())
+            time_series.add_hologram(h, time_point = time_point)
+        
+        time_series.batch_reconstruct(propagation_distance = [1,3])
+
+def test_time_series_batch_reconstruct_three_wavelengths():
+    name = os.path.join(tempfile.gettempdir(), 'test_time_series.hdf5')
+
+    with TimeSeries(name = name, mode = 'w') as time_series:
+        for time_point in range(3):
+            h = Hologram(np.dstack([_example_hologram() for _ in range(3)]),
+                         wavelength = [400e-9, 500e-9, 600e-9])
+            time_series.add_hologram(h, time_point = time_point)
+        
+        time_series.batch_reconstruct(propagation_distance = [1,3])

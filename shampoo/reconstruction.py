@@ -539,8 +539,8 @@ class Hologram(object):
             # axis, but axes will be swapped so that wavelength is last.
             wave = self.reconstruct(propagation_distances[index], 
                                     fourier_mask = fourier_mask)
-            wave_cube[..., index] = wave.reconstructed_wave
-            mask_cube[..., index] = wave.fourier_mask
+            wave_cube[..., index] = np.atleast_3d(wave.reconstructed_wave)
+            mask_cube[..., index] = np.atleast_3d(wave.fourier_mask)
 
         # Make the Pool of workers
         pool = ThreadPool(threads)
