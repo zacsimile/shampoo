@@ -16,7 +16,6 @@ from __future__ import (absolute_import, division, print_function,
 from collections import Sized, deque, defaultdict
 
 import warnings
-import exceptions
 
 from multiprocessing.dummy import Pool as ThreadPool
 from functools import partial
@@ -39,6 +38,8 @@ from astropy.convolution import convolve_fft, MexicanHat2DKernel
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
+
+import time
 
 # Try importing optional dependency PyFFTW for Fourier transforms. 
 # Numpy's fft_intel package might also be preferable
@@ -110,6 +111,38 @@ def fftshift(x, additional_shift=None, axes=None):
         mylist = np.concatenate((np.arange(p2, n), np.arange(0, p2)))
         y = np.take(y, mylist, k)
     return y
+    
+def arrshift(x, shift, axes=None):
+    """
+    Shift array by ``shift`` along ``axes``.
+
+
+    Parameters
+    ----------
+    x : array_like
+        Input array.
+    shift : list of length ``M``
+        Desired additional shifts along respective axes
+    axes : int or shape tuple, optional
+        Axes over which to shift.  Default is None, which shifts all axes.
+
+    Returns
+    -------
+    y : `~numpy.ndarray`
+        The shifted array.
+    """
+    y = np.asarray(x)
+    ndim = len(y.shape)
+    if axes is None:
+        axes = list(range(ndim))
+    elif isinstance(axes, integer_types):
+        axes = (axes,)
+    
+    for j, k in zip(axes, shift):
+        n = y.shape[j];
+        y = np.roll(y, (n+1)//2 - (-1)*k, axis=j)
+    
+    return y
 
 def _load_hologram(hologram_path):
     """
@@ -164,7 +197,7 @@ class CropEfficiencyWarning(AstropyUserWarning):
 class MaskSizeWarning(AstropyUserWarning):
     pass
     
-class CentroidUpdateError(Exception):
+class UpdateError(Exception):
     def __init__(self, value):
         self.value = value
         
@@ -201,7 +234,7 @@ class Hologram(object):
         the smallest dimension. TODO: Why are we not zero-filling out to the next
         power of 2 instead of cropping?
         """
-        wavelength = np.array(wavelength)
+        wavelength = np.atleast_1d(wavelength).reshape((1,1,-1))
 
         self.crop_fraction = crop_fraction
         self.rebin_factor = rebin_factor
@@ -218,7 +251,9 @@ class Hologram(object):
         
         self.n = self.hologram.shape[0]
         self.wavelength = wavelength
-        self.spectral_peak = None
+        self.wavenumber = 2*np.pi/self.wavelength
+        self._spectral_peak = None
+        self._chromatic_shift = None
         self.dx = dx*rebin_factor
         self.dy = dy*rebin_factor
         self.mgrid = np.mgrid[0:self.n, 0:self.n]
@@ -234,11 +269,26 @@ class Hologram(object):
         if self._ft_hologram is None:
             if apodize==True:
                 apodized_hologram = self.apodize(self.hologram)
-                self._ft_hologram = fft2(apodized_hologram)
+                self._ft_hologram = fftshift(fft2(apodized_hologram))
             else:
-                self._ft_hologram = fft2(self.hologram)
+                self._ft_hologram = fftshift(fft2(self.hologram))
 
         return self._ft_hologram
+        
+    @property
+    def spectral_peak(self):
+        if self._spectral_peak is None:
+            # Guess 'em
+            self._spectral_peak = self.fourier_peak_centroid(self.ft_hologram)
+        
+        return self._spectral_peak
+        
+    @property
+    def chromatic_shift(self):
+        if self._chromatic_shift is None:
+            self._chromatic_shift = np.zeros_like(self.wavelength);
+            # Ideally we'd actually calculate the chromatic shift
+        return self._chromatic_shift
 
     @classmethod
     def from_tif(cls, hologram_path, **kwargs):
@@ -257,7 +307,7 @@ class Hologram(object):
 
         return cls(hologram, **kwargs)
         
-    def reconstruct(self, propagation_distance, spectral_peak=None, fourier_mask=None):
+    def reconstruct(self, propagation_distance, spectral_peak=None, fourier_mask=None, chromatic_shift=None):
         """
         Reconstruct the hologram at all ``propagation_distance`` for all ``self.wavelength``.
         
@@ -282,9 +332,9 @@ class Hologram(object):
         # Did we specify a centroid? OK, use it.
         if spectral_peak is not None:
             self.update_spectral_peak(spectral_peak) 
-        # Otherwise, guess it
-        if self.spectral_peak is None:
-            self.spectral_peak = self.fourier_peak_centroid(self.ft_hologram)
+            
+        if chromatic_shift is not None:
+            self.update_chromatic_shift(chromatic_shift)
             
         # Ignore Fourier masks that are of incorrect shape
         if fourier_mask is not None and (np.prod(fourier_mask.shape) != 
@@ -293,19 +343,16 @@ class Hologram(object):
             message = ("Fourier mask dimensions don't match hologram dimensions. Ignoring.")
             warnings.warn(message, MaskSizeWarning)
         
-        if propagation_distance.size > 1 or self.wavelength.size > 1:
+        if propagation_distance.size > 1:
             reconstructed_wave = self._reconstruct_multithread(propagation_distance, 
-                                                               self.wavelength, 
-                                                               spectral_peak = spectral_peak, 
                                                                fourier_mask = fourier_mask)
         else:
-            reconstructed_wave = self._reconstruct(propagation_distance, self.wavelength, 
-                                                   spectral_peak, fourier_mask)
+            reconstructed_wave = self._reconstruct(propagation_distance, fourier_mask)
         
         return reconstructed_wave
         
 
-    def _reconstruct(self, propagation_distance, wavelength, spectral_peak, fourier_mask=None):
+    def _reconstruct(self, propagation_distance, fourier_mask=None):
         """
         Reconstruct the wave at a single ``propagation_distance`` for a single ``wavelength``.
 
@@ -313,8 +360,6 @@ class Hologram(object):
         ----------
         propagation_distance : float
             Propagation distance [m]
-        wavelength : float
-            Wavelength at which to reconstruct
         spectral_peak : integer pair [x,y]
             Centroid of spectral peak for wavelength in power spectrum of hologram FT
         fourier_mask : array_like or None, optional
@@ -325,14 +370,15 @@ class Hologram(object):
         reconstructed_wave : `~shampoo.reconstruction.ReconstructedWave`
             The reconstructed wave.
         """
+        start = time.time()
         
-        x_peak, y_peak = spectral_peak
+        x_peak, y_peak = self.spectral_peak
         
-        # Calculate mask radius. TODO: Update the guess from 150.
+        # Calculate mask radius. TODO: Update 250 to an automated guess based on input values.
         if self.rebin_factor != 1:
             mask_radius = 150./self.rebin_factor
         elif self.crop_fraction is not None and self.crop_fraction != 0:
-            mask_radius = 150./abs(np.log(self.crop_fraction)/np.log(2))
+            mask_radius = 150.*self.crop_fraction
         else:
             mask_radius = 150.
         
@@ -342,25 +388,52 @@ class Hologram(object):
             mask = self.real_image_mask(x_peak, y_peak, mask_radius)
         else:
             mask = np.asarray(fourier_mask, dtype=np.bool)
-            
+        mask = np.atleast_3d(mask)
+        
+        mask_time = time.time()
+
         # Calculate Fourier transform of impulse response function
-        G = self.fourier_trans_of_impulse_resp_func(propagation_distance, wavelength)
-
-        # Now calculate digital phase mask. First center the spectral peak
-        shifted_ft_hologram = fftshift(self.ft_hologram * mask, additional_shift=[-x_peak, -y_peak])
-
+        G = self.fourier_trans_of_impulse_resp_func(np.atleast_1d([propagation_distance]*
+                                self.wavelength.size).reshape((1,1,-1))-self.chromatic_shift)
+        print(G.shape)
+        transfer = time.time()
+        
+        # Now calculate digital phase mask. First center the spectral peak for each channel
+        x_peak, y_peak = x_peak.reshape(-1), y_peak.reshape(-1)
+        shifted_ft_hologram = np.empty_like(np.atleast_3d(mask),dtype=np.complex128)
+        for channel in range(self.wavelength.size):
+            shifted_ft_hologram[:,:,channel] = arrshift(self.ft_hologram * mask[:,:,channel],
+                                                        [-x_peak[channel], 
+                                                         -y_peak[channel]],
+                                                        axes = (0,1))
+        print(shifted_ft_hologram.shape)
+        arrshifts = time.time()
         # Apodize the result
         psi = self.apodize(shifted_ft_hologram * G)
         digital_phase_mask = self.get_digital_phase_mask(psi)
-
-        # Reconstruct the image    
-        psi = G * fftshift(fft2(apodized_hologram * digital_phase_mask) * mask,
-                           additional_shift=[-x_peak, -y_peak])
-        reconstructed_wave = fftshift(ifft2(psi))
+        phase_mask = time.time()
+        # Reconstruct the image
+        # fftshift is independent of channel
+        psi = np.empty_like(np.atleast_3d(shifted_ft_hologram))
+        print(digital_phase_mask.shape)
+        print(shifted_ft_hologram.shape)
+        for channel in range(psi.shape[2]):
+            psi[:,:,channel] = arrshift(fftshift(fft2(self.apodize(self.hologram) * digital_phase_mask[:,:,channel], 
+                                        axes = (0,1))) * 
+                                        mask[:,:,channel],
+                                        [-x_peak[channel], 
+                                         -y_peak[channel]],
+                                        axes = (0,1))
+        print(psi.shape)
+        psi *= G
+        print(psi.shape)
         
-        return ReconstructedWave(reconstructed_wave, mask, wavelength)
+        reconstructed_wave = fftshift(ifft2(psi, axes = (0,1)), axes = (0,1))
+        end = time.time()
+        print("Start: " + str(start) + "\n Mask: " + str(mask_time-start) + "\n Transfer: " +str(transfer-start) + "\n Shifts: " + str(arrshifts-start) + "\n Phase Mask: " + str(phase_mask-start) + "\n End: " + str(end-start))
+        return ReconstructedWave(reconstructed_wave, fourier_mask = mask, wavelength=self.wavelength)
 
-    def get_digital_phase_mask(self, psi, wavelength):
+    def get_digital_phase_mask(self, psi):
         """
         Calculate the digital phase mask (i.e. reference wave), as in Colomb et
         al. 2006, Eqn. 26 [1]_.
@@ -372,22 +445,15 @@ class Hologram(object):
         psi : `~numpy.ndarray`
             The product of the Fourier transform of the hologram and the Fourier
             transform of impulse response function
-        plots : bool
-            Display plots after calculation if `True`
         Returns
         -------
         phase_mask : `~numpy.ndarray`
             Digital phase mask, used for correcting phase aberrations.
         """
-        # Need to flip mgrid indices for this least squares solution
-        y, x = self.mgrid - self.n/2
-        
-        wavenumber = 2*np.pi/wavelength
+        inverse_psi = fftshift(ifft2(psi, axes = (0 ,1)), axes = (0, 1))
 
-        inverse_psi = fftshift(ifft2(psi))
-
-        unwrapped_phase_image = unwrap_phase(inverse_psi)/2/wavenumber
-        smooth_phase_image = gaussian_filter(unwrapped_phase_image, 50)
+        unwrapped_phase_image = np.atleast_3d(unwrap_phase(inverse_psi))/2/self.wavenumber
+        smooth_phase_image = gaussian_filter(unwrapped_phase_image, [50, 50, 0]) # do not filter along axis 2
 
         high = np.percentile(unwrapped_phase_image, 99)
         low = np.percentile(unwrapped_phase_image, 1)
@@ -397,12 +463,25 @@ class Hologram(object):
 
         # Fit the smoothed phase image with a 2nd order polynomial surface with
         # mixed terms using least-squares.
-        v = np.array([np.ones(len(x[0, :])), x[0, :], y[:, 0], x[0, :]**2,
-                      x[0, :] * y[:, 0], y[:, 0]**2])
-        coefficients = np.linalg.lstsq(v.T, smooth_phase_image)[0]
-        field_curvature_mask = np.dot(v.T, coefficients)
+        # This is iterated over all wavelength channels separately
+        # TODO: can this be done on the smooth_phase_image along axis 2 instead
+        # of direct iteration?
+        smooth_phase_image = smooth_phase_image
+        channels = np.split(smooth_phase_image, smooth_phase_image.shape[2], axis = 2)
+        fits = list()
 
-        digital_phase_mask = np.exp(-1j*wavenumber * field_curvature_mask)
+        # Need to flip mgrid indices for this least squares solution
+        y, x = self.mgrid - self.n/2
+        x, y = np.squeeze(x), np.squeeze(y)
+
+        for channel in channels:
+            v = np.array([np.ones(len(x[0, :])), x[0, :], y[:, 0], x[0, :]**2,
+                        x[0, :] * y[:, 0], y[:, 0]**2])
+            coefficients = np.linalg.lstsq(v.T, np.squeeze(channel))[0]
+            fits.append(np.dot(v.T, coefficients))
+            
+        field_curvature_mask = np.stack(fits, axis = 2)
+        digital_phase_mask = np.exp(-1j*self.wavenumber * field_curvature_mask)
 
         return digital_phase_mask
 
@@ -425,40 +504,39 @@ class Hologram(object):
             x, y = self.mgrid
             n = len(x[0])
             tukey_window = tukey(n, alpha)
-            self.apodization_window_function = tukey_window[:, np.newaxis] * tukey_window
-
-        apodized_array = array * self.apodization_window_function
+            self.apodization_window_function = np.atleast_3d(tukey_window[:, np.newaxis] * tukey_window)
+        
+        # In the most general case, array might represent a multi-wavelength hologram
+        apodized_array = np.squeeze(np.atleast_3d(array) * self.apodization_window_function)
         return apodized_array
-
-    def fourier_trans_of_impulse_resp_func(self, propagation_distance, wavelength):
+        
+    def fourier_trans_of_impulse_resp_func(self, propagation_distance):
         """
         Calculate the Fourier transform of impulse response function, sometimes
         represented as ``G`` in the literature.
-
         For reference, see Eqn 3.22 of Schnars & Juptner (2002) Meas. Sci.
         Technol. 13 R85-R101 [1]_,
-
         .. [1] http://x-ray.ucsd.edu/mediawiki/images/d/df/Digital_recording_numerical_reconstruction.pdf
-
         Parameters
         ----------
         propagation_distance : float
             Propagation distance [m]
-
         Returns
         -------
         G : `~numpy.ndarray`
             Fourier transform of impulse response function
         """
         x, y = self.mgrid - self.n/2
-        wavenumber = 2*np.pi/wavelength;
-        first_term = (wavelength**2 * (x + self.n**2 * self.dx**2 /
-                      (2.0 * propagation_distance * wavelength))**2 /
+        x, y = np.atleast_3d(x), np.atleast_3d(y)
+        propagation_distance = np.atleast_3d(propagation_distance)
+        print(propagation_distance.shape)
+        first_term = (self.wavelength**2 * (x + self.n**2 * self.dx**2 /
+                      (2.0 * propagation_distance * self.wavelength))**2 /
                       (self.n**2 * self.dx**2))
-        second_term = (wavelength**2 * (y + self.n**2 * self.dy**2 /
-                       (2.0 * propagation_distance * wavelength))**2 /
+        second_term = (self.wavelength**2 * (y + self.n**2 * self.dy**2 /
+                       (2.0 * propagation_distance * self.wavelength))**2 /
                        (self.n**2 * self.dy**2))
-        G = np.exp(-1j * wavenumber * propagation_distance *
+        G = np.exp(-1j * self.wavenumber * propagation_distance *
                    np.sqrt(1.0 - first_term - second_term))
         return G
         
@@ -468,10 +546,12 @@ class Hologram(object):
     
         Parameters
         ----------
-        center_x : int
-            ``x`` centroid [pixels] of real image in Fourier space
-        center_y : int
-            ``y`` centroid [pixels] of real image in Fourier space
+        center_x : `~numpy.ndarray`
+            ``x`` centroid [pixels] of real image in Fourier space for each 
+            image in a stack.
+        center_y : `~numpy.ndarray`
+            ``y`` centroid [pixels] of real image in Fourier space for each
+            image in a stack.
         radius : float
             Radial width of mask [pixels] to apply to the real image in Fourier
             space
@@ -482,14 +562,19 @@ class Hologram(object):
             Binary-valued mask centered on the real-image peak in the Fourier
             transform of the hologram.
         """
+        center_x, center_y = np.reshape(center_x, (1, 1, -1)), np.reshape(center_y, (1, 1, -1))
         x, y = self.mgrid
-        mask = np.zeros((self.n, self.n))
-        mask[(x-center_x)**2 + (y-center_y)**2 < radius**2] = 1.0
+        x, y = x[:,:,None], y[:,:,None]
+        x_shift = x-center_x
+        y_shift = y-center_y
+        mask = np.zeros_like(np.atleast_3d(x_shift), dtype = np.bool)
+        mask[(x_shift)**2 + (y_shift)**2 < radius**2] = True
 
         # exclude corners
         buffer = 20
-        mask[(x < buffer) | (y < buffer) |
-             (x > len(x) - buffer) | (y > len(y) - buffer)] = 0.0
+        if self.crop_fraction is not None:
+            buffer = buffer*self.crop_fraction
+        mask[((x_shift)**2 + (y_shift)**2) < buffer**2] = 0.0
 
         return mask
     
@@ -518,56 +603,44 @@ class Hologram(object):
         abs_fourier_arr = np.abs(fourier_arr)[margin:self.n//2, margin:-margin, :]
         return _find_peak_centroid(abs_fourier_arr, gaussian_width=10) + margin
 
-    def _reconstruct_multithread(self, propagation_distances, wavelengths, threads=4, fourier_masks=None, 
-                                spectral_peaks=None):
+    def _reconstruct_multithread(self, propagation_distances, threads=4, fourier_mask=None):
         """
         Reconstruct phase or intensity for multiple distances, for one hologram.
-
         Parameters
         ----------
         propagation_distances : `~numpy.ndarray` or list
             Propagation distances to reconstruct
-        wavelengths : `~numpy.ndarray` or list
-            Wavelengths at which to reconstruct each depth
         threads : int
             Number of threads to use via `~multiprocessing`
         fourier_mask : array_like or None, optional
             Fourier-domain mask. If None (default), a mask is determined from the position of the main
             spectral peak. If array_like, the array will be cast to boolean.
-        spectral_peak : `~numpy.ndarray`
-            Centroid of spectral peak for wavelength in power spectrum of hologram FT 
-            (len(self.wavelength) x 2)
         Returns
         -------
-        reconstructed : ReconstructedWave
+        wave_cube : Dictionary of ReconstructedWave where keys are depth in meters
         """
 
         n_z_slices = len(propagation_distances)
-        n_wavelengths = len(wavelengths)
-        
-        reconstructions = defaultdict(dict)
 
-        def __reconstruct(index, channel):
+        wave_cube = dict()
+
+        def __reconstruct(index):
             # Reconstruct image, add to data cube
             # It is simpler to store propagation distances along the last
             # axis, but axes will be swapped so that wavelength is last.
             wave = self._reconstruct(propagation_distances[index],
-                                     wavelengths[channel],
-                                     spectral_peak[channel],
-                                     fourier_mask = (fourier_masks[..., index, channel] if 
-                                                     fourier_masks is not None else None))
-            reconstructions[propagation_distances[index]][wavelengths[channel]] = wave
-                        
+                                    fourier_mask = fourier_mask)
+            wave_cube.update({propagation_distances[index]: wave})
+            
         # Make the Pool of workers
         pool = ThreadPool(threads)
-        f__reconstruct = partial(__reconstruct, range(n_z_slices))
-        pool.map(f__reconstruct, range(n_wavelengths))
+        pool.map(__reconstruct, range(n_z_slices))
 
         # close the pool and wait for the work to finish
         pool.close()
         pool.join()
-        
-        return reconstructions
+
+        return wave_cube
     
     def update_spectral_peak(self, spectral_peak):
         """
@@ -580,23 +653,47 @@ class Hologram(object):
             (len(self.wavelength) x 2)
         """
         
-        spectral_peak = np.array(spectral_peak)
+        spectral_peak = np.atleast_2d(spectral_peak)
         
-        if spectral_peak.shape[1] != 2 or spectral_peak.shape[0] != wavelength.shape[0]:
-            message = ("Centroid must be of shape {0} by 2. "
+        if spectral_peak.shape[1] != 2 or spectral_peak.shape[0] != self.wavelength.shape[2]:
+            message = ("Spectral peak array must be of shape {0} by 2. "
                        "{0} is the number of wavelengths."
-                       .format(wavelength.shape[0]))
-            raise CentroidUpdateError(message)
-            break
+                       .format(self.wavelength.shape[2]))
+            raise UpdateError(message)
+            
+        if self.crop_fraction is not None:
+            spectral_peak = np.round(spectral_peak*self.crop_fraction*self.rebin_factor).astype(int)
         
-        self.spectral_peak = spectral_peak
+        self._spectral_peak = spectral_peak.swapaxes(0,1)
+        
+    def update_chromatic_shift(self,chromatic_shift):
+        """
+        Update chromatic shift values for changed depth of focus for different wavelengths.
+        
+        Parameters
+        ----------
+        spectral_peak : `~numpy.ndarray`
+            1xN_wavelength list of depth of focus changes
+        """
+        chromatic_shift = np.atleast_1d(chromatic_shift).reshape((1,1,-1))
+        if chromatic_shift.shape[2] != self.wavelength.shape[2]:
+            message = ("Chromatic shift must be of length {0} (number of wavelengths)."
+                        .format(self.wavelength.shape[2]))
+            raise UpdateError(message)
+            
+        self._chromatic_shift = chromatic_shift
 
+def unwrap_phase(reconstructed_wave, wavelength=None):
+#    if wavelength is not None and wavelength.size > 1:
+#        return _unwrap_phase_multithread(reconstructed_wave, wavelength)
+#    else:
+    return _unwrap_phase(reconstructed_wave)
 
-def unwrap_phase(reconstructed_wave, seed=random_seed):
+def _unwrap_phase(reconstructed_wave, seed=RANDOM_SEED):
     """
     2D phase unwrap a complex reconstructed wave.
     Essentially a wrapper around the `~skimage.restoration.unwrap_phase`
-    function. The output will be type float64.
+    function.
     Parameters
     ----------
     reconstructed_wave : `~numpy.ndarray`
@@ -607,10 +704,44 @@ def unwrap_phase(reconstructed_wave, seed=random_seed):
     -------
     `~numpy.ndarray`
         Unwrapped phase image
+    """   
+    phase = np.squeeze(2 * np.arctan(reconstructed_wave.imag / reconstructed_wave.real))
+    
+    # No channel, no need for shenanigans
+    if phase.ndim < 3:
+        return skimage_unwrap_phase(phase, seed=seed)
+
+    # Each wavelength channel must be done separately
+    unwrapped = np.empty_like(reconstructed_wave)
+    unwrapped_channels = list()
+    for phase_channel in np.dsplit(phase, phase.shape[2]):
+        unwrapped_channels.append( skimage_unwrap_phase(np.squeeze(phase_channel),seed=seed) )
+    return np.dstack(unwrapped_channels)
+    
+#def _unwrap_phase_multiwavelength(reconstructed_wave, wavelength):
     """
-    return skimage_unwrap_phase(2 * np.arctan(reconstructed_wave.imag /
-                                              reconstructed_wave.real),
-                                seed=seed)
+    Perform multi-wavelength phase unwrapping.
+
+    For reference, see U. Schnars and W. Jueptner, Digital Holography, 90-92 (2005).
+    
+    Parameters
+    ----------
+    reconstructed_wave : `~numpy.ndarray`
+        Complex reconstructed wave
+    wavelength : 
+        Wavelength at which to reconstruct in meters
+    Returns
+    -------
+    `~numpy.ndarray`
+        Unwrapped phase images
+    """
+    
+    # Sort wavelengths from largest to smallest
+#    wavelength = np.sort(np.array(wavelength).reshape(-1))[::-1]
+    
+#    synthetic_wavelength = wavelength[0]*wavelength[1]/(wavelength[0]-wavelength[1])
+    
+
 
 class ReconstructedWave(object):
     """
@@ -626,10 +757,10 @@ class ReconstructedWave(object):
         fourier_mask : array_like
             Reconstruction Fourier mask, in 2- or 3- dimensions.
         """
-        self.reconstructed_wave = reconstructed_wave
+        self.reconstructed_wave = np.squeeze(reconstructed_wave)
         self._intensity_image = None
         self._phase_image = None
-        self.fourier_mask = np.asarray(fourier_mask, dtype = np.bool)
+        self.fourier_mask = np.squeeze(np.asarray(fourier_mask, dtype = np.bool))
         self.wavelength = wavelength
         self.random_seed = RANDOM_SEED
     
@@ -651,6 +782,6 @@ class ReconstructedWave(object):
         Returns the unwrapped phase using `~skimage.restoration.unwrap_phase`.
         """
         if self._phase_image is None:
-            self._phase_image = unwrap_phase(self.reconstructed_wave)
+            self._phase_image = unwrap_phase(self.reconstructed_wave, self.wavelength)
 
         return self._phase_image
