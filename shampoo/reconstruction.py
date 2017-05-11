@@ -395,7 +395,6 @@ class Hologram(object):
         # Calculate Fourier transform of impulse response function
         G = self.fourier_trans_of_impulse_resp_func(np.atleast_1d([propagation_distance]*
                                 self.wavelength.size).reshape((1,1,-1))-self.chromatic_shift)
-        print(G.shape)
         transfer = time.time()
         
         # Now calculate digital phase mask. First center the spectral peak for each channel
@@ -406,7 +405,6 @@ class Hologram(object):
                                                         [-x_peak[channel], 
                                                          -y_peak[channel]],
                                                         axes = (0,1))
-        print(shifted_ft_hologram.shape)
         arrshifts = time.time()
         # Apodize the result
         psi = self.apodize(shifted_ft_hologram * G)
@@ -415,8 +413,7 @@ class Hologram(object):
         # Reconstruct the image
         # fftshift is independent of channel
         psi = np.empty_like(np.atleast_3d(shifted_ft_hologram))
-        print(digital_phase_mask.shape)
-        print(shifted_ft_hologram.shape)
+
         for channel in range(psi.shape[2]):
             psi[:,:,channel] = arrshift(fftshift(fft2(self.apodize(self.hologram) * digital_phase_mask[:,:,channel], 
                                         axes = (0,1))) * 
@@ -424,13 +421,10 @@ class Hologram(object):
                                         [-x_peak[channel], 
                                          -y_peak[channel]],
                                         axes = (0,1))
-        print(psi.shape)
         psi *= G
-        print(psi.shape)
         
         reconstructed_wave = fftshift(ifft2(psi, axes = (0,1)), axes = (0,1))
         end = time.time()
-        print("Start: " + str(start) + "\n Mask: " + str(mask_time-start) + "\n Transfer: " +str(transfer-start) + "\n Shifts: " + str(arrshifts-start) + "\n Phase Mask: " + str(phase_mask-start) + "\n End: " + str(end-start))
         return ReconstructedWave(reconstructed_wave, fourier_mask = mask, wavelength=self.wavelength)
 
     def get_digital_phase_mask(self, psi):
@@ -529,7 +523,6 @@ class Hologram(object):
         x, y = self.mgrid - self.n/2
         x, y = np.atleast_3d(x), np.atleast_3d(y)
         propagation_distance = np.atleast_3d(propagation_distance)
-        print(propagation_distance.shape)
         first_term = (self.wavelength**2 * (x + self.n**2 * self.dx**2 /
                       (2.0 * propagation_distance * self.wavelength))**2 /
                       (self.n**2 * self.dx**2))
