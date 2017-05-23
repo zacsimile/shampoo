@@ -26,7 +26,7 @@ import h5py
 import numpy as np
 from numpy.compat import integer_types
 
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, maximum_filter
 from scipy.signal import tukey
 
 from skimage.restoration import unwrap_phase as skimage_unwrap_phase
@@ -279,7 +279,7 @@ class Hologram(object):
     def spectral_peak(self):
         if self._spectral_peak is None:
             # Guess 'em
-            self._spectral_peak = self.fourier_peak_centroid(self.ft_hologram)
+            self.update_spectral_peak(self.fourier_peak_centroid())
         
         return self._spectral_peak
         
@@ -564,15 +564,14 @@ class Hologram(object):
         mask[(x_shift)**2 + (y_shift)**2 < radius**2] = True
 
         # exclude corners
-        buffer = 20
-        if self.crop_fraction is not None:
-            buffer = buffer*self.crop_fraction
-        mask[((x_shift)**2 + (y_shift)**2) < buffer**2] = 0.0
+        #buffer = 20
+        #if self.crop_fraction is not None:
+        #    buffer = buffer*self.crop_fraction
+        #mask[((x_shift)**2 + (y_shift)**2) < buffer**2] = 0.0
 
         return mask
     
-    def fourier_peak_centroid(self, fourier_arr, mask_radius=None,
-                              margin_factor=0.1, plot=False):
+    def fourier_peak_centroid(self, gaussian_width=10):
         """
         Calculate the centroid of the signal spike in Fourier space near the
         frequencies of the real image.
@@ -591,11 +590,33 @@ class Hologram(object):
             Pixel at the centroid of the spike in Fourier transform of the
             hologram near the real image.
         """
-        margin = int(self.n*margin_factor)
-        #abs_fourier_arr = np.abs(fourier_arr)[margin:-margin, margin:-margin]
-        abs_fourier_arr = np.abs(fourier_arr)[margin:self.n//2, margin:-margin, :]
-        return _find_peak_centroid(abs_fourier_arr, gaussian_width=10) + margin
-
+        F = gaussian_filter(np.abs(self.ft_hologram), gaussian_width) # Filter with a gaussian
+        M = maximum_filter(F,3) # Get 8-neighbor maxima
+        tfm = M==F # Maxima location TF array
+        m = F[tfm] # Maxima
+        idx = m.argsort()[::-1] # Sort the maxima, get the sorted indices in descending order
+        x, y = np.nonzero(tfm) # Maxima locations
+        # Grab top 2*#wavelengths + 1 peaks
+        x = x[idx[0:(2*self.wavelength.shape[2]+1)]]
+        y = y[idx[0:(2*self.wavelength.shape[2]+1)]]
+        rsq = (x-self.n/2)**2 + (y-self.n/2)**2
+        dist = np.sort(rsq)[1:] # Sort distances in ascending order
+        idx = np.argsort(rsq)[1:] # Get sorted indices
+        order = self.wavelength.reshape(-1).argsort()
+        peaks = np.zeros([self.wavelength.shape[2],2])
+        for o in order:
+            i1 = idx[2*o]
+            i2 = idx[2*o + 1]
+            y1 = y[i1]
+            y2 = y[i2]
+            i = i1
+            if y1 < y2:
+                i = i2
+            peaks[o,:] = [x[i], y[i]]
+            
+        return peaks
+        
+        
     def _reconstruct_multithread(self, propagation_distances, threads=4, fourier_mask=None):
         """
         Reconstruct phase or intensity for multiple distances, for one hologram.
@@ -653,9 +674,8 @@ class Hologram(object):
                        "{0} is the number of wavelengths."
                        .format(self.wavelength.shape[2]))
             raise UpdateError(message)
-            
-        if self.crop_fraction is not None:
-            spectral_peak = np.round(spectral_peak*self.crop_fraction*self.rebin_factor).astype(int)
+
+        spectral_peak = spectral_peak.astype(int)
         
         self._spectral_peak = spectral_peak.swapaxes(0,1)
         
