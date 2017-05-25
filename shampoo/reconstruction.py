@@ -151,13 +151,36 @@ def _load_hologram(hologram_path):
     return np.array(imread(hologram_path), dtype=np.float64)
 
 
-def _find_peak_centroid(image, gaussian_width=10):
+def _find_peak_centroid(image, wavelength=405e-9, gaussian_width=10):
     """
     Smooth the image, find centroid of peak in the image.
     """
-    smoothed_image = gaussian_filter(image, gaussian_width)
-    return np.array(np.unravel_index(smoothed_image.argmax(),
-                                     image.shape))
+    wavelength = np.atleast_1d(wavelength).reshape((1,1,-1))
+    F = gaussian_filter(image, gaussian_width) # Filter with a gaussian
+    M = maximum_filter(F,3) # Get 8-neighbor maxima
+    tfm = M==F # Maxima location TF array
+    m = F[tfm] # Maxima
+    idx = m.argsort()[::-1] # Sort the maxima, get the sorted indices in descending order
+    x, y = np.nonzero(tfm) # Maxima locations
+    # Grab top 2*#wavelengths + 1 peaks
+    x = x[idx[0:(2*wavelength.shape[2]+1)]]
+    y = y[idx[0:(2*wavelength.shape[2]+1)]]
+    rsq = (x-image.shape[0]/2)**2 + (y-image.shape[1]/2)**2
+    dist = np.sort(rsq)[1:] # Sort distances in ascending order
+    idx = np.argsort(rsq)[1:] # Get sorted indices
+    order = wavelength.reshape(-1).argsort()
+    peaks = np.zeros([wavelength.shape[2],2])
+    for o in order:
+        i1 = idx[2*o]
+        i2 = idx[2*o + 1]
+        y1 = y[i1]
+        y2 = y[i2]
+        i = i1
+        if y1 < y2:
+            i = i2
+        peaks[o,:] = [x[i], y[i]]
+        
+    return peaks
 
 def _crop_image(image, crop_fraction):
     """
@@ -597,31 +620,8 @@ class Hologram(object):
             Pixel at the centroid of the spike in Fourier transform of the
             hologram near the real image.
         """
-        F = gaussian_filter(np.abs(self.ft_hologram), gaussian_width) # Filter with a gaussian
-        M = maximum_filter(F,3) # Get 8-neighbor maxima
-        tfm = M==F # Maxima location TF array
-        m = F[tfm] # Maxima
-        idx = m.argsort()[::-1] # Sort the maxima, get the sorted indices in descending order
-        x, y = np.nonzero(tfm) # Maxima locations
-        # Grab top 2*#wavelengths + 1 peaks
-        x = x[idx[0:(2*self.wavelength.shape[2]+1)]]
-        y = y[idx[0:(2*self.wavelength.shape[2]+1)]]
-        rsq = (x-self.n/2)**2 + (y-self.n/2)**2
-        dist = np.sort(rsq)[1:] # Sort distances in ascending order
-        idx = np.argsort(rsq)[1:] # Get sorted indices
-        order = self.wavelength.reshape(-1).argsort()
-        peaks = np.zeros([self.wavelength.shape[2],2])
-        for o in order:
-            i1 = idx[2*o]
-            i2 = idx[2*o + 1]
-            y1 = y[i1]
-            y2 = y[i2]
-            i = i1
-            if y1 < y2:
-                i = i2
-            peaks[o,:] = [x[i], y[i]]
-            
-        return peaks
+        
+        return _find_peak_centroid(np.abs(self.ft_hologram), self.wavelength, gaussian_width)
         
         
     def _reconstruct_multithread(self, propagation_distances, threads=4, fourier_mask=None):
