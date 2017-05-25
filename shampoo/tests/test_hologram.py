@@ -40,12 +40,12 @@ def test_nondefault_fourier_mask():
 
 def test_reconstruction_multiwavelength():
     wl = [450e-9, 550e-9, 650e-9]
-    im = np.dstack([_example_hologram() for _ in wl])
+    im = _example_hologram()
     holo = Hologram(im, wavelength = wl)
 
     w = holo.reconstruct(0.2)
     assert np.allclose(wl, holo.wavelength)
-    assert im.shape == w.reconstructed_wave.shape
+    assert len(wl) == w.reconstructed_wave.shape[2]
 
     # in some rare occations, it has appeared that the
     # reconstructed waves were all NaNs.
@@ -64,6 +64,7 @@ def test_centroid():
     assert np.all(np.squeeze(_find_peak_centroid(image=test_image)) == centroid)
     assert np.all(test_image[centroid] == np.max(test_image))
 
+# FAILS
 def test_centroid_multichannel():
     """ Test _find_peak_centroid for inputs with multiple channels (wavelengths) """
     centroids = (102, 304), (405, 312)
